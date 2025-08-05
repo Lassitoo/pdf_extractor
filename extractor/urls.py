@@ -1,6 +1,8 @@
 from django.urls import path
-from .views import upload_pdf
+from . import views
 
 urlpatterns = [
-    path('', upload_pdf, name='upload_pdf'),
+    path('', views.upload_pdf, name='upload_pdf'),
+    path('process/', views.process_pdf, name='process_pdf'),
+    path('results/<int:document_id>/', views.get_document_results, name='get_document_results'),
 ]

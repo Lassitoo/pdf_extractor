@@ -1,14 +1,89 @@
 <!DOCTYPE html>
-<html>
+<html lang="fr">
 <head>
-    <title>Upload PDF</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Extracteur PDF - Texte, Tableaux & Images</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <h1>Uploader un PDF</h1>
-    <form method="POST" enctype="multipart/form-data">
-        {% csrf_token %}
-        <input type="file" name="pdf_file" accept="application/pdf" required>
-        <button type="submit">Envoyer</button>
-    </form>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>Extracteur PDF Intelligent</h1>
+            <p>Extrayez facilement du texte, des tableaux et des images de vos documents PDF</p>
+        </div>
+
+        <!-- Zone d'upload -->
+        <div class="upload-section" id="upload-section">
+            <form id="upload-form" class="upload-form">
+                {% csrf_token %}
+                <label for="pdf-file" class="file-input-wrapper">
+                    <input type="file" id="pdf-file" class="file-input" accept="application/pdf" required>
+                    📁 Choisir un fichier PDF
+                </label>
+                
+                <div class="file-info">
+                    Format PDF uniquement, taille maximale 10MB
+                </div>
+                
+                <button type="submit" class="upload-btn" id="upload-btn">
+                    🚀 Extraire le contenu
+                </button>
+            </form>
+        </div>
+
+        <!-- Zone de chargement -->
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <h3>Extraction en cours...</h3>
+            <p>Analyse du PDF et extraction du contenu. Cela peut prendre quelques secondes.</p>
+        </div>
+
+        <!-- Alerte d'erreur -->
+        <div class="alert alert-error" id="error-alert" style="display: none;"></div>
+
+        <!-- Zone des résultats -->
+        <div class="results-section" id="results-section">
+            <div class="results-header">
+                <h2>Résultats de l'extraction</h2>
+                <div class="results-stats">
+                    <!-- Les statistiques seront ajoutées dynamiquement -->
+                </div>
+            </div>
+            
+            <div class="results-content">
+                <!-- Onglets de navigation -->
+                <div class="tabs">
+                    <button class="tab active" data-tab="text-content">📝 Texte</button>
+                    <button class="tab" data-tab="tables-content">📊 Tableaux</button>
+                    <button class="tab" data-tab="images-content">🖼️ Images</button>
+                </div>
+
+                <!-- Contenu des onglets -->
+                
+                <!-- Onglet Texte -->
+                <div id="text-content" class="tab-content active">
+                    <!-- Le contenu du texte sera ajouté dynamiquement -->
+                </div>
+
+                <!-- Onglet Tableaux -->
+                <div id="tables-content" class="tab-content">
+                    <!-- Les tableaux seront ajoutés dynamiquement -->
+                </div>
+
+                <!-- Onglet Images -->
+                <div id="images-content" class="tab-content">
+                    <!-- Les images seront ajoutées dynamiquement -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{% static 'js/app.js' %}"></script>
 </body>
 </html>
