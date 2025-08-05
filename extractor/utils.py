@@ -241,85 +241,232 @@ def extract_pdf_content(pdf_path, output_img_folder):
             result["extraction_errors"] = []
         result["extraction_errors"].append(error_data)
     
-    # Extraction des tableaux avec pdfplumber (amélioration de la détection)
+    # Extraction des tableaux avec pdfplumber (approche simplifiée et efficace)
     try:
         with pdfplumber.open(pdf_path) as pdf:
             for page_num, page in enumerate(pdf.pages, 1):
-                # Extraction des tableaux avec paramètres personnalisés
+                # Paramètres optimisés pour une détection naturelle
                 table_settings = {
-                    "vertical_strategy": "lines_strict",
-                    "horizontal_strategy": "lines_strict",
-                    "explicit_vertical_lines": [],
-                    "explicit_horizontal_lines": [],
-                    "snap_tolerance": 3,
-                    "join_tolerance": 3,
-                    "edge_min_length": 3,
-                    "min_words_vertical": 3,
+                    "vertical_strategy": "lines",  # Plus flexible que lines_strict
+                    "horizontal_strategy": "lines",
+                    "snap_tolerance": 5,  # Plus tolérant
+                    "join_tolerance": 5,
+                    "edge_min_length": 10,  # Lignes plus longues
+                    "min_words_vertical": 2,  # Moins restrictif
                     "min_words_horizontal": 1,
-                    "intersection_tolerance": 3,
-                    "text_tolerance": 3,
-                    "text_x_tolerance": 3,
-                    "text_y_tolerance": 3
+                    "intersection_tolerance": 5,
+                    "text_tolerance": 5,
+                    "text_x_tolerance": 5,
+                    "text_y_tolerance": 5
                 }
                 
-                # Essayer différentes stratégies de détection
+                # Essayer plusieurs approches progressivement
                 tables_found = []
                 
-                # Stratégie 1: Lignes strictes
-                tables = page.extract_tables(table_settings)
-                if tables:
-                    tables_found.extend(tables)
+                # 1. Approche standard avec lignes
+                try:
+                    tables = page.extract_tables(table_settings)
+                    if tables:
+                        # Marquer ces tableaux comme trouvés avec la méthode lignes
+                        for table in tables:
+                            tables_found.append(("lines", table))
+                except:
+                    pass
                 
-                # Stratégie 2: Texte seulement (pour tableaux sans bordures)
-                table_settings["vertical_strategy"] = "text"
-                table_settings["horizontal_strategy"] = "text"
-                tables_text = page.extract_tables(table_settings)
-                if tables_text:
-                    for table in tables_text:
-                        # Éviter les doublons
-                        if table not in tables_found:
-                            tables_found.append(table)
+                # 2. Si pas de tableaux trouvés, essayer avec détection par texte
+                if not tables_found:
+                    try:
+                        text_settings = {
+                            "vertical_strategy": "text",
+                            "horizontal_strategy": "text",
+                            "snap_tolerance": 10,
+                            "join_tolerance": 10,
+                            "text_tolerance": 8,
+                            "text_x_tolerance": 8,
+                            "text_y_tolerance": 8,
+                            "min_words_vertical": 2,
+                            "min_words_horizontal": 1
+                        }
+                        tables_text = page.extract_tables(text_settings)
+                        if tables_text:
+                            # Marquer ces tableaux comme trouvés avec la méthode texte
+                            for table in tables_text:
+                                tables_found.append(("text", table))
+                    except:
+                        pass
                 
-                # Traiter les tableaux trouvés
-                for table_idx, table in enumerate(tables_found):
-                    if table and len(table) > 0:
-                        # Nettoyer les cellules vides et None
-                        cleaned_table = []
-                        for row in table:
-                            cleaned_row = [cell.strip() if cell and cell.strip() else "" for cell in row]
-                            if any(cleaned_row):  # Garder seulement les lignes non vides
-                                cleaned_table.append(cleaned_row)
+                # 3. Approche hybride si nécessaire
+                if not tables_found:
+                    try:
+                        hybrid_settings = {
+                            "vertical_strategy": "lines",
+                            "horizontal_strategy": "text",
+                            "snap_tolerance": 8,
+                            "join_tolerance": 8,
+                            "text_tolerance": 6,
+                            "min_words_vertical": 2,
+                            "min_words_horizontal": 1
+                        }
+                        tables_hybrid = page.extract_tables(hybrid_settings)
+                        if tables_hybrid:
+                            # Marquer ces tableaux comme hybrides (probablement sans bordures complètes)
+                            for table in tables_hybrid:
+                                tables_found.append(("hybrid", table))
+                    except:
+                        pass
+                
+                # Traiter et nettoyer les tableaux trouvés
+                for table_idx, table_info in enumerate(tables_found):
+                    # Extraire la méthode et le tableau
+                    if isinstance(table_info, tuple):
+                        method, table = table_info
+                    else:
+                        method = "lines"  # Par défaut
+                        table = table_info
                         
-                        if cleaned_table and len(cleaned_table) > 1:  # Au moins 2 lignes
-                            table_data = {
-                                "table_id": f"page_{page_num}_table_{table_idx + 1}",
-                                "page": page_num,
-                                "data": cleaned_table,
-                                "rows": len(cleaned_table),
-                                "columns": len(cleaned_table[0]) if cleaned_table else 0
-                            }
+                    if table and len(table) > 0:
+                        # Nettoyer et valider le tableau
+                        cleaned_table = []
+                        max_cols = 0
+                        
+                        # Première passe : déterminer le nombre maximum de colonnes
+                        for row in table:
+                            if row:
+                                clean_row = []
+                                for cell in row:
+                                    if cell is not None:
+                                        cell_text = str(cell).strip()
+                                        clean_row.append(cell_text)
+                                    else:
+                                        clean_row.append("")
+                                if len(clean_row) > max_cols:
+                                    max_cols = len(clean_row)
+                                if any(cell for cell in clean_row if cell):  # Au moins une cellule non vide
+                                    cleaned_table.append(clean_row)
+                        
+                        # Deuxième passe : normaliser toutes les lignes au même nombre de colonnes
+                        normalized_table = []
+                        for row in cleaned_table:
+                            # Étendre ou tronquer la ligne pour avoir max_cols colonnes
+                            while len(row) < max_cols:
+                                row.append("")
+                            if len(row) > max_cols:
+                                row = row[:max_cols]
+                            normalized_table.append(row)
+                        
+                        # Valider que c'est vraiment un tableau (au moins 2 lignes et 2 colonnes)
+                        if len(normalized_table) >= 2 and max_cols >= 2:
+                            # Vérifier qu'il y a assez de contenu
+                            non_empty_cells = sum(1 for row in normalized_table for cell in row if cell.strip())
+                            total_cells = len(normalized_table) * max_cols
                             
-                            # Tentative de conversion en DataFrame pour analyse
-                            try:
-                                if len(cleaned_table) > 1:  # Au moins une ligne d'en-tête + données
-                                    df = pd.DataFrame(cleaned_table[1:], columns=cleaned_table[0])
-                                    table_data["csv_data"] = df.to_csv(index=False)
-                                    table_data["has_headers"] = True
-                                else:
-                                    table_data["has_headers"] = False
-                            except Exception as e:
-                                table_data["conversion_error"] = str(e)
-                                table_data["has_headers"] = False
-                            
-                            result["tables"].append(table_data)
-                            
-                            # Ajouter aux données de la page correspondante
-                            if page_num - 1 < len(result["pages"]):
-                                result["pages"][page_num - 1]["tables"].append(table_data)
+                            # Au moins 30% des cellules doivent avoir du contenu
+                            if non_empty_cells >= (total_cells * 0.3):
+                                # Détecter si le tableau a des bordures pour tous les types d'extraction
+                                has_borders = detect_table_borders(page, table_settings)
+                                
+                                table_data = {
+                                    "table_id": f"page_{page_num}_table_{table_idx + 1}",
+                                    "page": page_num,
+                                    "data": normalized_table,
+                                    "rows": len(normalized_table),
+                                    "columns": max_cols,
+                                    "has_borders": has_borders,
+                                    "extraction_method": f"pdfplumber_{method}"
+                                }
+                                
+                                # Déterminer s'il y a des en-têtes (première ligne différente des autres)
+                                has_headers = False
+                                if len(normalized_table) > 1:
+                                    first_row = normalized_table[0]
+                                    # Heuristique : si la première ligne a plus de texte ou des mots plus longs
+                                    first_row_chars = sum(len(cell) for cell in first_row)
+                                    avg_chars_other_rows = sum(sum(len(cell) for cell in row) for row in normalized_table[1:]) / (len(normalized_table) - 1)
+                                    
+                                    if first_row_chars > avg_chars_other_rows * 0.8:
+                                        has_headers = True
+                                
+                                table_data["has_headers"] = has_headers
+                                
+                                # Tentative de conversion en DataFrame
+                                try:
+                                    if has_headers and len(normalized_table) > 1:
+                                        df = pd.DataFrame(normalized_table[1:], columns=normalized_table[0])
+                                        table_data["csv_data"] = df.to_csv(index=False)
+                                    else:
+                                        df = pd.DataFrame(normalized_table)
+                                        table_data["csv_data"] = df.to_csv(index=False, header=False)
+                                except Exception as e:
+                                    table_data["conversion_error"] = str(e)
+                                
+                                result["tables"].append(table_data)
+                                
+                                # Ajouter aux données de la page correspondante
+                                if page_num - 1 < len(result["pages"]):
+                                    result["pages"][page_num - 1]["tables"].append(table_data)
                 
     except Exception as e:
         error_data = {
             "error": f"Erreur extraction tableaux avec pdfplumber: {str(e)}"
+        }
+        if "extraction_errors" not in result:
+            result["extraction_errors"] = []
+        result["extraction_errors"].append(error_data)
+    
+    # Extraction complémentaire de tableaux avec PyMuPDF (pour tableaux basés sur la position)
+    try:
+        pdf_doc = fitz.open(pdf_path)
+        
+        for page_num in range(len(pdf_doc)):
+            page = pdf_doc[page_num]
+            
+            # Obtenir tous les blocs de texte avec leurs positions
+            text_dict = page.get_text("dict")
+            text_blocks = []
+            
+            for block in text_dict["blocks"]:
+                if "lines" in block:  # Block de texte
+                    for line in block["lines"]:
+                        for span in line["spans"]:
+                            if span["text"].strip():
+                                text_blocks.append({
+                                    "text": span["text"].strip(),
+                                    "x0": span["bbox"][0],
+                                    "y0": span["bbox"][1],
+                                    "x1": span["bbox"][2],
+                                    "y1": span["bbox"][3],
+                                    "font_size": span["size"]
+                                })
+            
+            # Essayer de détecter des structures tabulaires
+            if text_blocks:
+                detected_tables = detect_tables_from_text_blocks(text_blocks, page_num + 1)
+                
+                for table_data in detected_tables:
+                    # Vérifier si ce tableau n'existe pas déjà (éviter les doublons)
+                    existing_table_found = False
+                    for existing_table in result["tables"]:
+                        if (existing_table["page"] == table_data["page"] and 
+                            existing_table["rows"] == table_data["rows"] and
+                            existing_table["columns"] == table_data["columns"]):
+                            # Comparer quelques cellules pour voir si c'est le même tableau
+                            if len(existing_table["data"]) > 0 and len(table_data["data"]) > 0:
+                                if existing_table["data"][0] == table_data["data"][0]:
+                                    existing_table_found = True
+                                    break
+                    
+                    if not existing_table_found:
+                        result["tables"].append(table_data)
+                        
+                        # Ajouter aux données de la page correspondante
+                        if page_num < len(result["pages"]):
+                            result["pages"][page_num]["tables"].append(table_data)
+        
+        pdf_doc.close()
+        
+    except Exception as e:
+        error_data = {
+            "error": f"Erreur extraction tableaux avec PyMuPDF: {str(e)}"
         }
         if "extraction_errors" not in result:
             result["extraction_errors"] = []
@@ -332,6 +479,45 @@ def extract_pdf_content(pdf_path, output_img_folder):
     result["metadata"]["total_positioned_elements"] = len(result["positioned_text"])
     
     return result
+
+def detect_table_borders(page, table_settings):
+    """
+    Détecte si un tableau a des bordures naturelles en analysant les lignes dans le PDF
+    """
+    try:
+        # Vérifier la stratégie utilisée pour l'extraction
+        vertical_strategy = table_settings.get("vertical_strategy", "")
+        horizontal_strategy = table_settings.get("horizontal_strategy", "")
+        
+        # Si la stratégie est basée sur les lignes, analyser les lignes réelles
+        if vertical_strategy == "lines" and horizontal_strategy == "lines":
+            # Obtenir toutes les lignes de la page
+            lines = page.lines
+            if lines and len(lines) > 4:
+                # Analyser les lignes pour voir si elles forment une grille
+                horizontal_lines = [line for line in lines if abs(line['x1'] - line['x0']) > abs(line['y1'] - line['y0'])]
+                vertical_lines = [line for line in lines if abs(line['y1'] - line['y0']) > abs(line['x1'] - line['x0'])]
+                
+                # Si on a à la fois des lignes horizontales et verticales, c'est probablement un tableau avec bordures
+                if len(horizontal_lines) >= 2 and len(vertical_lines) >= 2:
+                    return True
+        
+        # Si la stratégie est basée sur le texte, probablement pas de bordures
+        if vertical_strategy == "text" or horizontal_strategy == "text":
+            return False
+            
+        # Stratégie hybride : vérifier s'il y a des lignes
+        if vertical_strategy == "lines" or horizontal_strategy == "lines":
+            lines = page.lines
+            if lines and len(lines) >= 3:  # Au moins quelques lignes
+                return True
+            
+        # Par défaut, supposer qu'il n'y a pas de bordures si on ne peut pas déterminer
+        return False
+        
+    except Exception:
+        # En cas d'erreur, supposer qu'il n'y a pas de bordures
+        return False
 
 def extract_text_with_layout(pdf_path):
     """
@@ -390,3 +576,136 @@ def extract_text_with_layout(pdf_path):
         print(f"Erreur extraction layout: {e}")
     
     return layout_data
+
+def detect_tables_from_text_blocks(text_blocks, page_num):
+    """
+    Détecte les tableaux basés sur l'alignement et la position des blocs de texte
+    """
+    if not text_blocks or len(text_blocks) < 4:  # Au moins 4 éléments pour un tableau 2x2
+        return []
+    
+    # Trier les blocs par position (y puis x)
+    text_blocks.sort(key=lambda b: (round(b["y0"], 1), round(b["x0"], 1)))
+    
+    # Grouper les blocs par lignes (même position Y approximative)
+    lines = []
+    current_line = []
+    current_y = None
+    y_tolerance = 5  # Tolérance pour considérer que deux éléments sont sur la même ligne
+    
+    for block in text_blocks:
+        if current_y is None or abs(block["y0"] - current_y) <= y_tolerance:
+            current_line.append(block)
+            current_y = block["y0"] if current_y is None else current_y
+        else:
+            if len(current_line) >= 2:  # Au moins 2 colonnes
+                lines.append(sorted(current_line, key=lambda b: b["x0"]))
+            current_line = [block]
+            current_y = block["y0"]
+    
+    # Ajouter la dernière ligne
+    if len(current_line) >= 2:
+        lines.append(sorted(current_line, key=lambda b: b["x0"]))
+    
+    if len(lines) < 2:  # Au moins 2 lignes pour un tableau
+        return []
+    
+    # Analyser les colonnes pour détecter des structures tabulaires
+    detected_tables = []
+    
+    # Essayer de détecter des tableaux en analysant l'alignement des colonnes
+    if len(lines) >= 2:
+        # Déterminer le nombre de colonnes le plus fréquent
+        col_counts = {}
+        for line in lines:
+            count = len(line)
+            col_counts[count] = col_counts.get(count, 0) + 1
+        
+        # Prendre le nombre de colonnes le plus fréquent (minimum 2)
+        most_common_cols = max([k for k in col_counts.keys() if k >= 2], default=0)
+        
+        if most_common_cols >= 2:
+            # Filtrer les lignes qui ont le bon nombre de colonnes (ou proche)
+            table_lines = []
+            for line in lines:
+                if abs(len(line) - most_common_cols) <= 1:  # Tolérance de ±1 colonne
+                    # Normaliser la ligne pour avoir exactement most_common_cols colonnes
+                    if len(line) < most_common_cols:
+                        # Ajouter des cellules vides
+                        while len(line) < most_common_cols:
+                            line.append({"text": "", "x0": line[-1]["x1"], "y0": line[-1]["y0"], 
+                                       "x1": line[-1]["x1"], "y1": line[-1]["y1"], "font_size": line[-1]["font_size"]})
+                    elif len(line) > most_common_cols:
+                        # Prendre seulement les premières colonnes
+                        line = line[:most_common_cols]
+                    table_lines.append(line)
+            
+            # Si on a au moins 2 lignes avec une structure cohérente
+            if len(table_lines) >= 2:
+                # Vérifier l'alignement des colonnes
+                column_positions = []
+                for col_idx in range(most_common_cols):
+                    positions = []
+                    for line in table_lines:
+                        if col_idx < len(line):
+                            positions.append(line[col_idx]["x0"])
+                    
+                    if positions:
+                        avg_pos = sum(positions) / len(positions)
+                        # Vérifier que les positions sont relativement alignées
+                        max_deviation = max(abs(pos - avg_pos) for pos in positions)
+                        if max_deviation <= 20:  # Tolérance d'alignement
+                            column_positions.append(avg_pos)
+                
+                # Si on a des colonnes bien alignées
+                if len(column_positions) >= 2:
+                    # Construire le tableau
+                    table_data = []
+                    for line in table_lines:
+                        row = []
+                        for col_idx in range(most_common_cols):
+                            if col_idx < len(line):
+                                row.append(line[col_idx]["text"])
+                            else:
+                                row.append("")
+                        table_data.append(row)
+                    
+                    # Vérifier que le tableau a du contenu significatif
+                    non_empty_cells = sum(1 for row in table_data for cell in row if cell.strip())
+                    total_cells = len(table_data) * most_common_cols
+                    
+                    if non_empty_cells >= (total_cells * 0.4):  # Au moins 40% de cellules non vides
+                        # Déterminer s'il y a des en-têtes
+                        has_headers = False
+                        if len(table_data) > 1:
+                            first_row_chars = sum(len(cell) for cell in table_data[0])
+                            if len(table_data) > 1:
+                                avg_other_rows = sum(sum(len(cell) for cell in row) for row in table_data[1:]) / (len(table_data) - 1)
+                                if first_row_chars > avg_other_rows * 0.7:
+                                    has_headers = True
+                        
+                        table_info = {
+                            "table_id": f"page_{page_num}_pymupdf_table_{len(detected_tables) + 1}",
+                            "page": page_num,
+                            "data": table_data,
+                            "rows": len(table_data),
+                            "columns": most_common_cols,
+                            "has_headers": has_headers,
+                            "has_borders": False,  # Les tableaux détectés par position n'ont généralement pas de bordures
+                            "extraction_method": "PyMuPDF_position"
+                        }
+                        
+                        # Générer CSV
+                        try:
+                            if has_headers and len(table_data) > 1:
+                                df = pd.DataFrame(table_data[1:], columns=table_data[0])
+                                table_info["csv_data"] = df.to_csv(index=False)
+                            else:
+                                df = pd.DataFrame(table_data)
+                                table_info["csv_data"] = df.to_csv(index=False, header=False)
+                        except Exception as e:
+                            table_info["conversion_error"] = str(e)
+                        
+                        detected_tables.append(table_info)
+    
+    return detected_tables

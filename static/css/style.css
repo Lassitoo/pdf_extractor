@@ -296,25 +296,19 @@ body {
 
 .extracted-table {
     width: 100%;
-    border-collapse: collapse;
     font-size: 0.875rem;
 }
 
+/* Styles par défaut qui s'appliquent à tous les tableaux */
 .extracted-table th,
 .extracted-table td {
     padding: 0.75rem;
     text-align: left;
-    border-bottom: 1px solid var(--border-color);
 }
 
 .extracted-table th {
-    background: var(--background);
     font-weight: 600;
     color: var(--text-primary);
-}
-
-.extracted-table tbody tr:hover {
-    background: #f9fafb;
 }
 
 /* Section images */
@@ -665,6 +659,57 @@ body {
     outline: 2px solid var(--primary-color);
     outline-offset: -2px;
     background: white;
+}
+
+/* Styles spécifiques pour les tableaux sans bordures */
+.extracted-table.no-borders {
+    border-collapse: separate;
+    border-spacing: 0;
+    border: none;
+}
+
+.extracted-table.no-borders th,
+.extracted-table.no-borders td {
+    border: none;
+    border-bottom: none;
+    padding: 0.5rem 1rem;
+    background: transparent;
+}
+
+.extracted-table.no-borders th {
+    background: transparent;
+    font-weight: 600;
+}
+
+.extracted-table.no-borders tbody tr:hover {
+    background: rgba(59, 130, 246, 0.05);
+}
+
+.extracted-table.no-borders td[contenteditable="true"]:focus {
+    outline: 1px solid var(--primary-color);
+    outline-offset: 2px;
+    background: rgba(59, 130, 246, 0.05);
+    border-radius: 3px;
+}
+
+/* Styles pour les tableaux avec bordures (comportement par défaut) */
+.extracted-table.with-borders {
+    border-collapse: collapse;
+    border: 1px solid var(--border-color);
+}
+
+.extracted-table.with-borders th,
+.extracted-table.with-borders td {
+    border: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.extracted-table.with-borders th {
+    background: var(--background);
+}
+
+.extracted-table.with-borders tbody tr:hover {
+    background: #f9fafb;
 }
 
 /* Notification temporaire */
