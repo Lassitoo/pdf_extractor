@@ -362,13 +362,8 @@ def extract_pdf_content(pdf_path, output_img_folder):
                             
                             # Au moins 30% des cellules doivent avoir du contenu
                             if non_empty_cells >= (total_cells * 0.3):
-                                # Détecter si le tableau a des bordures basé sur la méthode d'extraction
-                                if method == "text":
-                                    has_borders = False  # Les tableaux détectés par texte n'ont pas de bordures
-                                elif method == "hybrid":
-                                    has_borders = False  # Les tableaux hybrides n'ont généralement pas de bordures complètes
-                                else:
-                                    has_borders = detect_table_borders(page, table_settings)
+                                # Détecter si le tableau a des bordures pour tous les types d'extraction
+                                has_borders = detect_table_borders(page, table_settings)
                                 
                                 table_data = {
                                     "table_id": f"page_{page_num}_table_{table_idx + 1}",
