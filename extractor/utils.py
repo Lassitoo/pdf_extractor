@@ -267,7 +267,9 @@ def extract_pdf_content(pdf_path, output_img_folder):
                 try:
                     tables = page.extract_tables(table_settings)
                     if tables:
-                        tables_found.extend(tables)
+                        # Marquer ces tableaux comme trouvés avec la méthode lignes
+                        for table in tables:
+                            tables_found.append(("lines", table))
                 except:
                     pass
                 
@@ -287,7 +289,9 @@ def extract_pdf_content(pdf_path, output_img_folder):
                         }
                         tables_text = page.extract_tables(text_settings)
                         if tables_text:
-                            tables_found.extend(tables_text)
+                            # Marquer ces tableaux comme trouvés avec la méthode texte
+                            for table in tables_text:
+                                tables_found.append(("text", table))
                     except:
                         pass
                 
@@ -305,12 +309,21 @@ def extract_pdf_content(pdf_path, output_img_folder):
                         }
                         tables_hybrid = page.extract_tables(hybrid_settings)
                         if tables_hybrid:
-                            tables_found.extend(tables_hybrid)
+                            # Marquer ces tableaux comme hybrides (probablement sans bordures complètes)
+                            for table in tables_hybrid:
+                                tables_found.append(("hybrid", table))
                     except:
                         pass
                 
                 # Traiter et nettoyer les tableaux trouvés
-                for table_idx, table in enumerate(tables_found):
+                for table_idx, table_info in enumerate(tables_found):
+                    # Extraire la méthode et le tableau
+                    if isinstance(table_info, tuple):
+                        method, table = table_info
+                    else:
+                        method = "lines"  # Par défaut
+                        table = table_info
+                        
                     if table and len(table) > 0:
                         # Nettoyer et valider le tableau
                         cleaned_table = []
@@ -349,12 +362,22 @@ def extract_pdf_content(pdf_path, output_img_folder):
                             
                             # Au moins 30% des cellules doivent avoir du contenu
                             if non_empty_cells >= (total_cells * 0.3):
+                                # Détecter si le tableau a des bordures basé sur la méthode d'extraction
+                                if method == "text":
+                                    has_borders = False  # Les tableaux détectés par texte n'ont pas de bordures
+                                elif method == "hybrid":
+                                    has_borders = False  # Les tableaux hybrides n'ont généralement pas de bordures complètes
+                                else:
+                                    has_borders = detect_table_borders(page, table_settings)
+                                
                                 table_data = {
                                     "table_id": f"page_{page_num}_table_{table_idx + 1}",
                                     "page": page_num,
                                     "data": normalized_table,
                                     "rows": len(normalized_table),
-                                    "columns": max_cols
+                                    "columns": max_cols,
+                                    "has_borders": has_borders,
+                                    "extraction_method": f"pdfplumber_{method}"
                                 }
                                 
                                 # Déterminer s'il y a des en-têtes (première ligne différente des autres)
@@ -461,6 +484,45 @@ def extract_pdf_content(pdf_path, output_img_folder):
     result["metadata"]["total_positioned_elements"] = len(result["positioned_text"])
     
     return result
+
+def detect_table_borders(page, table_settings):
+    """
+    Détecte si un tableau a des bordures naturelles en analysant les lignes dans le PDF
+    """
+    try:
+        # Vérifier la stratégie utilisée pour l'extraction
+        vertical_strategy = table_settings.get("vertical_strategy", "")
+        horizontal_strategy = table_settings.get("horizontal_strategy", "")
+        
+        # Si la stratégie est basée sur les lignes, analyser les lignes réelles
+        if vertical_strategy == "lines" and horizontal_strategy == "lines":
+            # Obtenir toutes les lignes de la page
+            lines = page.lines
+            if lines and len(lines) > 4:
+                # Analyser les lignes pour voir si elles forment une grille
+                horizontal_lines = [line for line in lines if abs(line['x1'] - line['x0']) > abs(line['y1'] - line['y0'])]
+                vertical_lines = [line for line in lines if abs(line['y1'] - line['y0']) > abs(line['x1'] - line['x0'])]
+                
+                # Si on a à la fois des lignes horizontales et verticales, c'est probablement un tableau avec bordures
+                if len(horizontal_lines) >= 2 and len(vertical_lines) >= 2:
+                    return True
+        
+        # Si la stratégie est basée sur le texte, probablement pas de bordures
+        if vertical_strategy == "text" or horizontal_strategy == "text":
+            return False
+            
+        # Stratégie hybride : vérifier s'il y a des lignes
+        if vertical_strategy == "lines" or horizontal_strategy == "lines":
+            lines = page.lines
+            if lines and len(lines) >= 3:  # Au moins quelques lignes
+                return True
+            
+        # Par défaut, supposer qu'il n'y a pas de bordures si on ne peut pas déterminer
+        return False
+        
+    except Exception:
+        # En cas d'erreur, supposer qu'il n'y a pas de bordures
+        return False
 
 def extract_text_with_layout(pdf_path):
     """
@@ -634,6 +696,7 @@ def detect_tables_from_text_blocks(text_blocks, page_num):
                             "rows": len(table_data),
                             "columns": most_common_cols,
                             "has_headers": has_headers,
+                            "has_borders": False,  # Les tableaux détectés par position n'ont généralement pas de bordures
                             "extraction_method": "PyMuPDF_position"
                         }
                         
