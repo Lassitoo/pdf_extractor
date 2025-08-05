@@ -128,6 +128,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Afficher le contenu de chaque onglet
         displayTextContent(results.text);
+        displayPositionedContent(results.positioned_text, results.pages);
         displayTablesContent(results.tables);
         displayImagesContent(results.images);
 
@@ -145,6 +146,10 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="stat-item">
                 <span>📝</span>
                 <span>${metadata.total_text_length || 0} caractères</span>
+            </div>
+            <div class="stat-item">
+                <span>📍</span>
+                <span>${metadata.total_positioned_elements || 0} éléments positionnels</span>
             </div>
             <div class="stat-item">
                 <span>📊</span>
@@ -186,10 +191,106 @@ document.addEventListener('DOMContentLoaded', function() {
     function displayTextContent(text) {
         const textContainer = document.getElementById('text-content');
         if (text && text.trim()) {
-            textContainer.innerHTML = `<div class="text-content">${escapeHtml(text)}</div>`;
+            textContainer.innerHTML = `
+                <div class="content-header">
+                    <h3>Texte extrait (éditable)</h3>
+                    <div class="content-actions">
+                        <button class="btn-secondary" onclick="copyToClipboard('text-content-area')">📋 Copier</button>
+                        <button class="btn-secondary" onclick="downloadText('text-content-area', 'extracted-text.txt')">💾 Télécharger</button>
+                    </div>
+                </div>
+                <div class="text-content">
+                    <textarea id="text-content-area" class="editable-text">${escapeHtml(text)}</textarea>
+                </div>
+            `;
         } else {
             textContainer.innerHTML = '<div class="alert alert-warning">Aucun texte extrait de ce PDF.</div>';
         }
+    }
+
+    function displayPositionedContent(positionedText, pages) {
+        const positionedContainer = document.getElementById('positioned-content');
+        
+        if (!positionedText || positionedText.length === 0) {
+            positionedContainer.innerHTML = '<div class="alert alert-warning">Aucun contenu positionnel trouvé dans ce PDF.</div>';
+            return;
+        }
+
+        // Grouper le contenu par page
+        const pageGroups = {};
+        positionedText.forEach(item => {
+            const pageNum = findPageForElement(item, pages);
+            if (!pageGroups[pageNum]) {
+                pageGroups[pageNum] = [];
+            }
+            pageGroups[pageNum].push(item);
+        });
+
+        let positionedHTML = `
+            <div class="content-header">
+                <h3>Contenu avec positions (éditable)</h3>
+                <div class="content-actions">
+                    <button class="btn-secondary" onclick="togglePositionView()">🎯 Basculer vue</button>
+                    <button class="btn-secondary" onclick="exportPositionedData()">📊 Exporter données</button>
+                </div>
+            </div>
+            <div class="positioned-content-wrapper">
+        `;
+
+        // Afficher chaque page
+        Object.keys(pageGroups).sort((a, b) => a - b).forEach(pageNum => {
+            const pageElements = pageGroups[pageNum];
+            
+            positionedHTML += `
+                <div class="positioned-page" data-page="${pageNum}">
+                    <div class="page-header">
+                        <h4>Page ${pageNum}</h4>
+                        <span class="element-count">${pageElements.length} éléments</span>
+                    </div>
+                    <div class="positioned-elements" id="positioned-view-${pageNum}">
+            `;
+
+            // Afficher les éléments avec leur position
+            pageElements.forEach((element, index) => {
+                const elementId = `pos-element-${pageNum}-${index}`;
+                positionedHTML += `
+                    <div class="positioned-element" 
+                         data-element-id="${elementId}"
+                         data-bbox="${JSON.stringify(element.bbox)}"
+                         data-font="${element.font}"
+                         data-size="${element.size}">
+                        <div class="element-info">
+                            <span class="position-info">x:${Math.round(element.bbox[0])}, y:${Math.round(element.bbox[1])}</span>
+                            <span class="font-info">${element.font} ${element.size}pt</span>
+                        </div>
+                        <div class="element-text" contenteditable="true" 
+                             onblur="updateElementText('${elementId}', this.textContent)">${escapeHtml(element.text)}</div>
+                    </div>
+                `;
+            });
+
+            positionedHTML += `
+                    </div>
+                </div>
+            `;
+        });
+
+        positionedHTML += '</div>';
+        positionedContainer.innerHTML = positionedHTML;
+    }
+
+    function findPageForElement(element, pages) {
+        // Trouver la page correspondante basée sur les données disponibles
+        if (element.page) return element.page;
+        
+        // Si pas de page directe, chercher dans les pages
+        for (let i = 0; i < pages.length; i++) {
+            const page = pages[i];
+            if (page.positioned_text && page.positioned_text.includes(element)) {
+                return i + 1;
+            }
+        }
+        return 1; // Par défaut page 1
     }
 
     function displayTablesContent(tables) {
@@ -206,10 +307,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="table-container">
                     <div class="table-header">
                         <div>
-                            <div class="table-title">${table.table_id}</div>
+                            <div class="table-title">${table.table_id} (éditable)</div>
                             <div class="table-meta">
                                 Page ${table.page} • ${table.rows} lignes × ${table.columns} colonnes
                             </div>
+                        </div>
+                        <div class="content-actions">
+                            <button class="btn-secondary" onclick="exportTableData('${table.table_id}')">📊 Exporter CSV</button>
+                            <button class="btn-secondary" onclick="copyTableData('${table.table_id}')">📋 Copier</button>
                         </div>
                     </div>
                     <div class="table-wrapper">
@@ -230,21 +335,21 @@ document.addEventListener('DOMContentLoaded', function() {
         const rows = table.data;
         const hasHeaders = table.has_headers;
         
-        let tableHTML = '<table class="extracted-table">';
+        let tableHTML = `<table class="extracted-table" data-table-id="${table.table_id}">`;
         
         if (hasHeaders && rows.length > 0) {
             tableHTML += '<thead><tr>';
-            rows[0].forEach(cell => {
-                tableHTML += `<th>${escapeHtml(cell || '')}</th>`;
+            rows[0].forEach((cell, index) => {
+                tableHTML += `<th contenteditable="true" data-row="0" data-col="${index}" onblur="updateTableCell('${table.table_id}', 0, ${index}, this.textContent)">${escapeHtml(cell || '')}</th>`;
             });
             tableHTML += '</tr></thead>';
             
             if (rows.length > 1) {
                 tableHTML += '<tbody>';
-                rows.slice(1).forEach(row => {
+                rows.slice(1).forEach((row, rowIndex) => {
                     tableHTML += '<tr>';
-                    row.forEach(cell => {
-                        tableHTML += `<td>${escapeHtml(cell || '')}</td>`;
+                    row.forEach((cell, colIndex) => {
+                        tableHTML += `<td contenteditable="true" data-row="${rowIndex + 1}" data-col="${colIndex}" onblur="updateTableCell('${table.table_id}', ${rowIndex + 1}, ${colIndex}, this.textContent)">${escapeHtml(cell || '')}</td>`;
                     });
                     tableHTML += '</tr>';
                 });
@@ -252,10 +357,10 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         } else {
             tableHTML += '<tbody>';
-            rows.forEach(row => {
+            rows.forEach((row, rowIndex) => {
                 tableHTML += '<tr>';
-                row.forEach(cell => {
-                    tableHTML += `<td>${escapeHtml(cell || '')}</td>`;
+                row.forEach((cell, colIndex) => {
+                    tableHTML += `<td contenteditable="true" data-row="${rowIndex}" data-col="${colIndex}" onblur="updateTableCell('${table.table_id}', ${rowIndex}, ${colIndex}, this.textContent)">${escapeHtml(cell || '')}</td>`;
                 });
                 tableHTML += '</tr>';
             });
@@ -337,5 +442,189 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
         return cookieValue;
+    }
+
+    // Fonctions utilitaires globales
+    window.copyToClipboard = function(elementId) {
+        const element = document.getElementById(elementId);
+        if (element) {
+            element.select();
+            document.execCommand('copy');
+            showNotification('Contenu copié dans le presse-papiers!');
+        }
+    };
+
+    window.downloadText = function(elementId, filename) {
+        const element = document.getElementById(elementId);
+        if (element) {
+            const text = element.value || element.textContent;
+            const blob = new Blob([text], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showNotification('Fichier téléchargé!');
+        }
+    };
+
+    window.updateElementText = function(elementId, newText) {
+        // Mettre à jour le texte d'un élément positionnel
+        console.log(`Mise à jour de l'élément ${elementId}: ${newText}`);
+        showNotification('Texte mis à jour!');
+    };
+
+    window.togglePositionView = function() {
+        const wrapper = document.querySelector('.positioned-content-wrapper');
+        if (wrapper) {
+            wrapper.classList.toggle('visual-layout');
+            const button = event.target;
+            if (wrapper.classList.contains('visual-layout')) {
+                button.textContent = '📝 Vue liste';
+            } else {
+                button.textContent = '🎯 Vue visuelle';
+            }
+        }
+    };
+
+    window.exportPositionedData = function() {
+        const positionedElements = document.querySelectorAll('.positioned-element');
+        const data = [];
+        
+        positionedElements.forEach(element => {
+            const bbox = JSON.parse(element.dataset.bbox || '[]');
+            const text = element.querySelector('.element-text').textContent;
+            const font = element.dataset.font;
+            const size = element.dataset.size;
+            
+            data.push({
+                text: text,
+                x: bbox[0],
+                y: bbox[1],
+                width: bbox[2] - bbox[0],
+                height: bbox[3] - bbox[1],
+                font: font,
+                size: size
+            });
+        });
+        
+        const jsonData = JSON.stringify(data, null, 2);
+        const blob = new Blob([jsonData], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'positioned-data.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showNotification('Données positionnelles exportées!');
+    };
+
+    window.updateTableCell = function(tableId, row, col, newValue) {
+        // Mettre à jour une cellule de tableau
+        console.log(`Mise à jour cellule ${tableId} [${row}, ${col}]: ${newValue}`);
+        showNotification('Cellule mise à jour!');
+    };
+
+    window.exportTableData = function(tableId) {
+        const table = document.querySelector(`table[data-table-id="${tableId}"]`);
+        if (!table) return;
+
+        const rows = [];
+        const headerRows = table.querySelectorAll('thead tr');
+        const bodyRows = table.querySelectorAll('tbody tr');
+
+        // Collecter les en-têtes
+        headerRows.forEach(row => {
+            const cells = Array.from(row.querySelectorAll('th')).map(cell => cell.textContent.trim());
+            rows.push(cells);
+        });
+
+        // Collecter les données
+        bodyRows.forEach(row => {
+            const cells = Array.from(row.querySelectorAll('td')).map(cell => cell.textContent.trim());
+            rows.push(cells);
+        });
+
+        // Convertir en CSV
+        const csvContent = rows.map(row => 
+            row.map(cell => `"${cell.replace(/"/g, '""')}"`).join(',')
+        ).join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${tableId}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showNotification('Tableau exporté en CSV!');
+    };
+
+    window.copyTableData = function(tableId) {
+        const table = document.querySelector(`table[data-table-id="${tableId}"]`);
+        if (!table) return;
+
+        const rows = [];
+        const headerRows = table.querySelectorAll('thead tr');
+        const bodyRows = table.querySelectorAll('tbody tr');
+
+        // Collecter toutes les lignes
+        [...headerRows, ...bodyRows].forEach(row => {
+            const cells = Array.from(row.querySelectorAll('th, td')).map(cell => cell.textContent.trim());
+            rows.push(cells.join('\t'));
+        });
+
+        const textContent = rows.join('\n');
+        
+        // Copier dans le presse-papiers
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(textContent).then(() => {
+                showNotification('Tableau copié dans le presse-papiers!');
+            });
+        } else {
+            // Fallback pour les navigateurs plus anciens
+            const textArea = document.createElement('textarea');
+            textArea.value = textContent;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            showNotification('Tableau copié dans le presse-papiers!');
+        }
+    };
+
+    function showNotification(message) {
+        // Créer une notification temporaire
+        const notification = document.createElement('div');
+        notification.className = 'notification';
+        notification.textContent = message;
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #4CAF50;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 4px;
+            z-index: 10000;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        `;
+        
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            notification.style.opacity = '0';
+            notification.style.transition = 'opacity 0.3s';
+            setTimeout(() => {
+                document.body.removeChild(notification);
+            }, 300);
+        }, 2000);
     }
 });
