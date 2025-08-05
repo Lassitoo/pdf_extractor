@@ -303,13 +303,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const tablesHTML = tables.map(table => {
             const tableHTML = generateTableHTML(table);
+            const hasBorders = table.has_borders !== false;
+            const borderIndicator = hasBorders ? "🔲 Avec bordures" : "📄 Sans bordures";
+            
             return `
                 <div class="table-container">
                     <div class="table-header">
                         <div>
                             <div class="table-title">${table.table_id} (éditable)</div>
                             <div class="table-meta">
-                                Page ${table.page} • ${table.rows} lignes × ${table.columns} colonnes
+                                Page ${table.page} • ${table.rows} lignes × ${table.columns} colonnes • ${borderIndicator}
                             </div>
                         </div>
                         <div class="content-actions">
@@ -334,8 +337,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const rows = table.data;
         const hasHeaders = table.has_headers;
+        const hasBorders = table.has_borders !== false; // Par défaut, on assume qu'il y a des bordures
         
-        let tableHTML = `<table class="extracted-table" data-table-id="${table.table_id}">`;
+        // Classe CSS différente selon la présence de bordures
+        const tableClass = hasBorders ? "extracted-table with-borders" : "extracted-table no-borders";
+        
+        let tableHTML = `<table class="${tableClass}" data-table-id="${table.table_id}" data-has-borders="${hasBorders}">`;
         
         if (hasHeaders && rows.length > 0) {
             tableHTML += '<thead><tr>';
