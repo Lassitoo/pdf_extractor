@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const errorAlert = document.getElementById('error-alert');
     
     let selectedFile = null;
+    let currentDocumentId = null;
 
     // Gestion du drag & drop
     uploadSection.addEventListener('dragover', handleDragOver);
@@ -99,6 +100,7 @@ document.addEventListener('DOMContentLoaded', function() {
             loading.style.display = 'none';
             
             if (data.success) {
+                currentDocumentId = data.document_id;
                 displayResults(data.results);
                 uploadSection.style.display = 'block';
                 resetForm();
@@ -122,6 +124,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Mettre à jour les statistiques
         updateResultsStats(results);
+
+        // Afficher le bouton de conversion
+        showConvertButton();
 
         // Initialiser les onglets
         initializeTabs();
@@ -633,5 +638,79 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.body.removeChild(notification);
             }, 300);
         }, 2000);
+    }
+
+    // Fonctions pour la conversion PDF vers Word
+    function showConvertButton() {
+        const convertBtn = document.getElementById('convert-to-word-btn');
+        if (convertBtn && currentDocumentId) {
+            convertBtn.style.display = 'inline-block';
+            convertBtn.onclick = handleConvertToWord;
+        }
+    }
+
+    function handleConvertToWord() {
+        if (!currentDocumentId) {
+            showError('Aucun document disponible pour la conversion');
+            return;
+        }
+
+        const convertBtn = document.getElementById('convert-to-word-btn');
+        const statusDiv = document.getElementById('conversion-status');
+        
+        // Afficher le statut de chargement
+        convertBtn.disabled = true;
+        convertBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Conversion...';
+        statusDiv.style.display = 'block';
+        statusDiv.className = 'conversion-status loading';
+        statusDiv.textContent = 'Conversion en cours...';
+
+        // Appel à l'API de conversion
+        fetch(`/convert-to-word/${currentDocumentId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            convertBtn.disabled = false;
+            convertBtn.innerHTML = '<i class="fas fa-file-word me-1"></i>Convertir en Word';
+
+            if (data.success) {
+                statusDiv.className = 'conversion-status success';
+                statusDiv.innerHTML = `
+                    <i class="fas fa-check-circle me-1"></i>
+                    Conversion réussie ! 
+                    <a href="${data.download_url}" download="${data.word_filename}" class="ms-2">
+                        <i class="fas fa-download"></i> Télécharger le fichier Word
+                    </a>
+                `;
+                
+                // Afficher une notification de succès
+                showNotification('Document converti avec succès en format Word !', 'success');
+                
+            } else {
+                statusDiv.className = 'conversion-status error';
+                statusDiv.innerHTML = `
+                    <i class="fas fa-exclamation-circle me-1"></i>
+                    Erreur: ${data.error}
+                `;
+                showError(data.error || 'Erreur lors de la conversion');
+            }
+        })
+        .catch(error => {
+            convertBtn.disabled = false;
+            convertBtn.innerHTML = '<i class="fas fa-file-word me-1"></i>Convertir en Word';
+            
+            statusDiv.className = 'conversion-status error';
+            statusDiv.innerHTML = `
+                <i class="fas fa-exclamation-circle me-1"></i>
+                Erreur de connexion lors de la conversion
+            `;
+            showError('Erreur de connexion lors de la conversion');
+            console.error('Conversion error:', error);
+        });
     }
 });
