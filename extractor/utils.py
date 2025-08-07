@@ -8,6 +8,10 @@ import pandas as pd
 import json
 from datetime import datetime
 import hashlib
+from docx import Document
+from docx.shared import Inches, Pt
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml.shared import OxmlElement, qn
 
 
 def clean_and_validate_table(table, page, table_settings, page_num, table_idx, method):
@@ -535,3 +539,144 @@ def detect_tables_from_text_blocks(text_blocks, page_num):
                             table_info["conversion_error"] = str(e)
                         detected_tables.append(table_info)
     return detected_tables
+
+
+def convert_pdf_to_word(pdf_path, output_folder):
+    """
+    Convertit un PDF en document Word (.docx) en préservant la structure.
+    
+    Args:
+        pdf_path (str): Chemin vers le fichier PDF
+        output_folder (str): Dossier de sortie pour le fichier Word
+        
+    Returns:
+        dict: Informations sur le document Word créé
+    """
+    try:
+        # Créer le dossier de sortie s'il n'existe pas
+        os.makedirs(output_folder, exist_ok=True)
+        
+        # Extraire le contenu du PDF
+        extraction_results = extract_pdf_content(pdf_path, output_folder)
+        
+        # Créer un nouveau document Word
+        doc = Document()
+        
+        # Définir les styles par défaut
+        style = doc.styles['Normal']
+        style.font.name = 'Arial'
+        style.font.size = Pt(11)
+        
+        # Ajouter un titre basé sur le nom du fichier
+        pdf_name = os.path.splitext(os.path.basename(pdf_path))[0]
+        title = doc.add_heading(pdf_name, 0)
+        title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        
+        # Traiter chaque page
+        for page_info in extraction_results.get('pages', []):
+            page_num = page_info.get('page_number', 1)
+            
+            # Ajouter un titre de page (sauf pour la première page)
+            if page_num > 1:
+                page_heading = doc.add_heading(f'Page {page_num}', level=2)
+                page_heading.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            
+            # Ajouter le texte de la page
+            page_text = page_info.get('text', '').strip()
+            if page_text:
+                # Diviser le texte en paragraphes
+                paragraphs = page_text.split('\n\n')
+                for para_text in paragraphs:
+                    para_text = para_text.strip()
+                    if para_text:
+                        # Détecter si c'est un titre (texte court, en majuscules ou avec peu de mots)
+                        if len(para_text) < 100 and (para_text.isupper() or len(para_text.split()) <= 10):
+                            if not para_text.startswith('•') and not para_text.startswith('-'):
+                                heading = doc.add_heading(para_text, level=3)
+                                continue
+                        
+                        # Ajouter comme paragraphe normal
+                        paragraph = doc.add_paragraph(para_text)
+                        
+                        # Gérer les listes à puces
+                        if para_text.startswith('•') or para_text.startswith('-'):
+                            paragraph.style = 'List Bullet'
+            
+            # Ajouter les tableaux de la page
+            page_tables = [table for table in extraction_results.get('tables', []) 
+                          if table.get('page') == page_num]
+            
+            for table_info in page_tables:
+                table_data = table_info.get('data', [])
+                if table_data and len(table_data) > 0:
+                    # Ajouter un titre pour le tableau
+                    doc.add_paragraph(f"\nTableau {table_info.get('table_id', '')}:", style='Heading 4')
+                    
+                    # Créer le tableau dans Word
+                    rows = len(table_data)
+                    cols = max(len(row) for row in table_data) if table_data else 1
+                    
+                    word_table = doc.add_table(rows=rows, cols=cols)
+                    word_table.style = 'Table Grid'
+                    
+                    # Remplir le tableau
+                    for row_idx, row_data in enumerate(table_data):
+                        for col_idx, cell_data in enumerate(row_data):
+                            if col_idx < len(word_table.rows[row_idx].cells):
+                                cell = word_table.rows[row_idx].cells[col_idx]
+                                cell.text = str(cell_data) if cell_data else ""
+                                
+                                # Mettre en gras la première ligne si c'est un en-tête
+                                if row_idx == 0 and table_info.get('has_headers', False):
+                                    for paragraph in cell.paragraphs:
+                                        for run in paragraph.runs:
+                                            run.bold = True
+            
+            # Ajouter les images de la page
+            page_images = page_info.get('images', [])
+            for image_info in page_images:
+                image_path = image_info.get('path')
+                if image_path and os.path.exists(image_path):
+                    try:
+                        # Ajouter un paragraphe pour l'image
+                        doc.add_paragraph(f"\nImage: {image_info.get('filename', 'Image')}")
+                        paragraph = doc.add_paragraph()
+                        run = paragraph.runs[0] if paragraph.runs else paragraph.add_run()
+                        
+                        # Calculer la taille appropriée (max 6 pouces de largeur)
+                        width = min(Inches(6), Inches(image_info.get('width', 400) / 100))
+                        run.add_picture(image_path, width=width)
+                        paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                        
+                    except Exception as e:
+                        # Si l'image ne peut pas être ajoutée, ajouter juste une note
+                        doc.add_paragraph(f"[Image non disponible: {image_info.get('filename', 'Image')}]")
+            
+            # Ajouter un saut de page entre les pages (sauf pour la dernière)
+            if page_num < len(extraction_results.get('pages', [])):
+                doc.add_page_break()
+        
+        # Sauvegarder le document Word
+        word_filename = f"{pdf_name}_converted.docx"
+        word_path = os.path.join(output_folder, word_filename)
+        doc.save(word_path)
+        
+        # Retourner les informations sur le document créé
+        file_size = os.path.getsize(word_path)
+        
+        return {
+            'success': True,
+            'word_path': word_path,
+            'word_filename': word_filename,
+            'file_size': file_size,
+            'pages_converted': len(extraction_results.get('pages', [])),
+            'tables_converted': len(extraction_results.get('tables', [])),
+            'images_converted': len(extraction_results.get('images', [])),
+            'conversion_date': datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        return {
+            'success': False,
+            'error': f"Erreur lors de la conversion: {str(e)}"
+        }
