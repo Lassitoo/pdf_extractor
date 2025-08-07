@@ -1,0 +1,423 @@
+{% extends 'edition/base.html' %}
+
+{% block title %}{{ document.title }} - PDF Edition{% endblock %}
+
+{% block extra_css %}
+<style>
+    #pdfViewer {
+        width: 100%;
+        height: 800px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+    }
+    
+    .pdf-controls {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 20px;
+    }
+    
+    .page-controls {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .zoom-controls {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .annotation-tools {
+        background: #fff3cd;
+        border: 1px solid #ffeaa7;
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 20px;
+    }
+    
+    .tool-button {
+        margin: 0 5px;
+        padding: 8px 12px;
+        border: 1px solid #ddd;
+        background: white;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    .tool-button:hover {
+        background: #f8f9fa;
+    }
+    
+    .tool-button.active {
+        background: #007bff;
+        color: white;
+        border-color: #007bff;
+    }
+    
+    #textOverlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        pointer-events: none;
+        z-index: 10;
+    }
+    
+    .editable-text {
+        position: absolute;
+        background: rgba(255, 255, 0, 0.3);
+        border: 1px dashed #ff6b6b;
+        min-width: 50px;
+        min-height: 20px;
+        cursor: text;
+        pointer-events: all;
+    }
+    
+    .editable-text:hover {
+        background: rgba(255, 255, 0, 0.5);
+    }
+    
+    .text-input {
+        width: 100%;
+        height: 100%;
+        border: none;
+        background: transparent;
+        outline: none;
+        resize: none;
+        font-family: inherit;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2>
+                <i class="fas fa-file-pdf text-danger"></i>
+                {{ document.title }}
+            </h2>
+            <div>
+                <a href="{% url 'edition:list_pdfs' %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left"></i> Retour
+                </a>
+                <a href="{{ document.pdf_file.url }}" class="btn btn-outline-primary" target="_blank">
+                    <i class="fas fa-download"></i> Télécharger
+                </a>
+            </div>
+        </div>
+        
+        <!-- Outils d'annotation -->
+        <div class="annotation-tools">
+            <h5><i class="fas fa-tools"></i> Outils d'édition</h5>
+            <div class="d-flex flex-wrap align-items-center">
+                <button class="tool-button" id="selectTool" data-tool="select">
+                    <i class="fas fa-mouse-pointer"></i> Sélection
+                </button>
+                <button class="tool-button" id="textTool" data-tool="text">
+                    <i class="fas fa-font"></i> Texte
+                </button>
+                <button class="tool-button" id="highlightTool" data-tool="highlight">
+                    <i class="fas fa-highlighter"></i> Surligner
+                </button>
+                <button class="tool-button" id="drawTool" data-tool="draw">
+                    <i class="fas fa-pen"></i> Dessiner
+                </button>
+                <div class="mx-3">|</div>
+                <button class="btn btn-success btn-sm" id="saveBtn">
+                    <i class="fas fa-save"></i> Sauvegarder
+                </button>
+                <button class="btn btn-warning btn-sm" id="undoBtn">
+                    <i class="fas fa-undo"></i> Annuler
+                </button>
+                <button class="btn btn-danger btn-sm" id="clearBtn">
+                    <i class="fas fa-trash"></i> Effacer tout
+                </button>
+            </div>
+        </div>
+        
+        <!-- Contrôles PDF -->
+        <div class="pdf-controls">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <div class="page-controls">
+                        <button class="btn btn-outline-secondary btn-sm" id="prevPage">
+                            <i class="fas fa-chevron-left"></i>
+                        </button>
+                        <span class="mx-2">
+                            Page <input type="number" id="pageNum" value="1" min="1" class="form-control form-control-sm d-inline-block" style="width: 60px;">
+                            sur <span id="pageCount">-</span>
+                        </span>
+                        <button class="btn btn-outline-secondary btn-sm" id="nextPage">
+                            <i class="fas fa-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="zoom-controls justify-content-end d-flex">
+                        <button class="btn btn-outline-secondary btn-sm" id="zoomOut">
+                            <i class="fas fa-search-minus"></i>
+                        </button>
+                        <span class="mx-2">
+                            <span id="zoomLevel">100%</span>
+                        </span>
+                        <button class="btn btn-outline-secondary btn-sm" id="zoomIn">
+                            <i class="fas fa-search-plus"></i>
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm ms-2" id="fitWidth">
+                            <i class="fas fa-arrows-alt-h"></i> Ajuster
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Visualiseur PDF -->
+        <div class="pdf-container position-relative">
+            <canvas id="pdfCanvas" style="border: 1px solid #ddd; border-radius: 8px; width: 100%; max-width: 100%;"></canvas>
+            <div id="textOverlay"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+// Configuration de PDF.js
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+document.addEventListener('DOMContentLoaded', function() {
+    let currentTool = 'select';
+    let annotations = [];
+    let isDrawing = false;
+    let currentPage = 1;
+    let totalPages = 1;
+    let zoomLevel = 1.0;
+    let pdfDoc = null;
+    let pageRendering = false;
+    let pageNumPending = null;
+    
+    // Éléments du DOM
+    const canvas = document.getElementById('pdfCanvas');
+    const ctx = canvas.getContext('2d');
+    const textOverlay = document.getElementById('textOverlay');
+    const pageNumInput = document.getElementById('pageNum');
+    const pageCountSpan = document.getElementById('pageCount');
+    const zoomLevelSpan = document.getElementById('zoomLevel');
+    
+    // URL du PDF
+    const pdfUrl = '{{ document.pdf_file.url }}';
+    
+    // Charger le PDF
+    pdfjsLib.getDocument(pdfUrl).promise.then(function(pdfDoc_) {
+        pdfDoc = pdfDoc_;
+        totalPages = pdfDoc.numPages;
+        pageCountSpan.textContent = totalPages;
+        
+        // Rendre la première page
+        renderPage(currentPage);
+    }).catch(function(error) {
+        console.error('Erreur lors du chargement du PDF:', error);
+        alert('Erreur lors du chargement du PDF. Vérifiez que le fichier existe et est accessible.');
+    });
+    
+    // Fonction pour rendre une page
+    function renderPage(num) {
+        pageRendering = true;
+        
+        pdfDoc.getPage(num).then(function(page) {
+            const viewport = page.getViewport({ scale: zoomLevel });
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+            
+            // Ajuster la taille de l'overlay
+            textOverlay.style.width = canvas.width + 'px';
+            textOverlay.style.height = canvas.height + 'px';
+            
+            const renderContext = {
+                canvasContext: ctx,
+                viewport: viewport
+            };
+            
+            const renderTask = page.render(renderContext);
+            
+            renderTask.promise.then(function() {
+                pageRendering = false;
+                if (pageNumPending !== null) {
+                    renderPage(pageNumPending);
+                    pageNumPending = null;
+                }
+            });
+        });
+        
+        pageNumInput.value = num;
+    }
+    
+    // Fonction pour mettre en file d'attente le rendu d'une page
+    function queueRenderPage(num) {
+        if (pageRendering) {
+            pageNumPending = num;
+        } else {
+            renderPage(num);
+        }
+    }
+    
+    // Initialisation des outils
+    document.querySelectorAll('.tool-button').forEach(button => {
+        button.addEventListener('click', function() {
+            document.querySelectorAll('.tool-button').forEach(btn => btn.classList.remove('active'));
+            this.classList.add('active');
+            currentTool = this.dataset.tool;
+        });
+    });
+    
+    // Outil de sélection actif par défaut
+    document.getElementById('selectTool').classList.add('active');
+    
+    // Contrôles de page
+    document.getElementById('prevPage').addEventListener('click', function() {
+        if (currentPage <= 1) {
+            return;
+        }
+        currentPage--;
+        queueRenderPage(currentPage);
+    });
+    
+    document.getElementById('nextPage').addEventListener('click', function() {
+        if (currentPage >= totalPages) {
+            return;
+        }
+        currentPage++;
+        queueRenderPage(currentPage);
+    });
+    
+    pageNumInput.addEventListener('change', function() {
+        const pageNum = parseInt(this.value);
+        if (pageNum >= 1 && pageNum <= totalPages) {
+            currentPage = pageNum;
+            queueRenderPage(currentPage);
+        } else {
+            this.value = currentPage;
+        }
+    });
+    
+    // Contrôles de zoom
+    document.getElementById('zoomIn').addEventListener('click', function() {
+        zoomLevel = Math.min(zoomLevel + 0.25, 3.0);
+        updateZoom();
+    });
+    
+    document.getElementById('zoomOut').addEventListener('click', function() {
+        zoomLevel = Math.max(zoomLevel - 0.25, 0.25);
+        updateZoom();
+    });
+    
+    document.getElementById('fitWidth').addEventListener('click', function() {
+        zoomLevel = 1.0;
+        updateZoom();
+    });
+    
+    function updateZoom() {
+        zoomLevelSpan.textContent = Math.round(zoomLevel * 100) + '%';
+        queueRenderPage(currentPage);
+    }
+    
+    // Gestion des clics sur le PDF pour ajouter du texte
+    textOverlay.addEventListener('click', function(e) {
+        if (currentTool === 'text') {
+            createTextElement(e.offsetX, e.offsetY);
+        }
+    });
+    
+    function createTextElement(x, y) {
+        const textElement = document.createElement('div');
+        textElement.className = 'editable-text';
+        textElement.style.left = x + 'px';
+        textElement.style.top = y + 'px';
+        textElement.style.width = '150px';
+        textElement.style.height = '30px';
+        
+        const textInput = document.createElement('textarea');
+        textInput.className = 'text-input';
+        textInput.placeholder = 'Tapez votre texte...';
+        textInput.addEventListener('blur', function() {
+            if (this.value.trim() === '') {
+                textElement.remove();
+            }
+        });
+        
+        textElement.appendChild(textInput);
+        textOverlay.appendChild(textElement);
+        textInput.focus();
+        
+        // Ajouter à la liste des annotations
+        annotations.push({
+            type: 'text',
+            x: x,
+            y: y,
+            content: '',
+            element: textElement
+        });
+    }
+    
+    // Sauvegarde des annotations
+    document.getElementById('saveBtn').addEventListener('click', function() {
+        const annotationData = annotations.map(annotation => ({
+            type: annotation.type,
+            x: annotation.x,
+            y: annotation.y,
+            content: annotation.element.querySelector('.text-input')?.value || ''
+        }));
+        
+        fetch('{% url "edition:save_annotations" document.id %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                annotations: annotationData
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                alert('Annotations sauvegardées avec succès !');
+            } else {
+                alert('Erreur lors de la sauvegarde : ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Erreur:', error);
+            alert('Erreur lors de la sauvegarde');
+        });
+    });
+    
+    // Annuler la dernière action
+    document.getElementById('undoBtn').addEventListener('click', function() {
+        if (annotations.length > 0) {
+            const lastAnnotation = annotations.pop();
+            if (lastAnnotation.element) {
+                lastAnnotation.element.remove();
+            }
+        }
+    });
+    
+    // Effacer toutes les annotations
+    document.getElementById('clearBtn').addEventListener('click', function() {
+        if (confirm('Êtes-vous sûr de vouloir effacer toutes les annotations ?')) {
+            annotations.forEach(annotation => {
+                if (annotation.element) {
+                    annotation.element.remove();
+                }
+            });
+            annotations = [];
+        }
+    });
+});
+</script>
+{% endblock %}

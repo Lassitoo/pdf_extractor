@@ -1,0 +1,116 @@
+{% extends 'edition/base.html' %}
+
+{% block title %}Upload PDF - PDF Edition{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="mb-0">
+                    <i class="fas fa-upload"></i> Upload un PDF
+                </h3>
+            </div>
+            <div class="card-body">
+                <form method="post" enctype="multipart/form-data" id="uploadForm">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label for="title" class="form-label">Titre du document</label>
+                        <input type="text" class="form-control" id="title" name="title" 
+                               placeholder="Entrez le titre du document (optionnel)">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="pdf_file" class="form-label">Fichier PDF</label>
+                        <div class="upload-area" id="uploadArea">
+                            <i class="fas fa-cloud-upload-alt fa-3x text-primary mb-3"></i>
+                            <h5>Glissez-déposez votre PDF ici</h5>
+                            <p class="text-muted">ou cliquez pour sélectionner un fichier</p>
+                            <input type="file" class="form-control" id="pdf_file" name="pdf_file" 
+                                   accept=".pdf" required style="display: none;">
+                            <button type="button" class="btn btn-outline-primary" onclick="document.getElementById('pdf_file').click();">
+                                <i class="fas fa-folder-open"></i> Sélectionner un fichier
+                            </button>
+                        </div>
+                        <div id="fileInfo" class="mt-2" style="display: none;">
+                            <div class="alert alert-info">
+                                <i class="fas fa-file-pdf"></i> 
+                                <span id="fileName"></span>
+                                <span class="badge bg-secondary ms-2" id="fileSize"></span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="fas fa-upload"></i> Uploader le PDF
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('pdf_file');
+    const fileInfo = document.getElementById('fileInfo');
+    const fileName = document.getElementById('fileName');
+    const fileSize = document.getElementById('fileSize');
+    const titleInput = document.getElementById('title');
+    
+    // Drag and drop functionality
+    uploadArea.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        uploadArea.classList.add('dragover');
+    });
+    
+    uploadArea.addEventListener('dragleave', function(e) {
+        e.preventDefault();
+        uploadArea.classList.remove('dragover');
+    });
+    
+    uploadArea.addEventListener('drop', function(e) {
+        e.preventDefault();
+        uploadArea.classList.remove('dragover');
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0 && files[0].type === 'application/pdf') {
+            fileInput.files = files;
+            updateFileInfo(files[0]);
+        }
+    });
+    
+    // File input change
+    fileInput.addEventListener('change', function(e) {
+        if (e.target.files.length > 0) {
+            updateFileInfo(e.target.files[0]);
+        }
+    });
+    
+    function updateFileInfo(file) {
+        fileName.textContent = file.name;
+        fileSize.textContent = formatFileSize(file.size);
+        fileInfo.style.display = 'block';
+        
+        // Auto-fill title if empty
+        if (!titleInput.value) {
+            titleInput.value = file.name.replace('.pdf', '');
+        }
+    }
+    
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+});
+</script>
+{% endblock %}
