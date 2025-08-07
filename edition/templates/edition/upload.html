@@ -1,53 +1,192 @@
-{% extends 'edition/base.html' %}
+{% extends 'base.html' %}
 
 {% block title %}Upload PDF - PDF Edition{% endblock %}
 
+{% block extra_css %}
+<style>
+    .upload-card {
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 20px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        overflow: hidden;
+    }
+
+    .upload-area {
+        border: 2px dashed #4f46e5;
+        border-radius: 15px;
+        padding: 3rem 2rem;
+        text-align: center;
+        background: linear-gradient(135deg, rgba(79, 70, 229, 0.05), rgba(124, 58, 237, 0.05));
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+
+    .upload-area:hover {
+        background: linear-gradient(135deg, rgba(79, 70, 229, 0.1), rgba(124, 58, 237, 0.1));
+        border-color: #7c3aed;
+        transform: translateY(-2px);
+    }
+
+    .upload-area.dragover {
+        background: linear-gradient(135deg, rgba(79, 70, 229, 0.15), rgba(124, 58, 237, 0.15));
+        border-color: #1976d2;
+        border-style: solid;
+    }
+
+    .upload-icon {
+        font-size: 4rem;
+        color: #4f46e5;
+        margin-bottom: 1rem;
+        transition: all 0.3s ease;
+    }
+
+    .upload-area:hover .upload-icon {
+        transform: scale(1.1);
+        color: #7c3aed;
+    }
+
+    .navigation-section {
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 15px;
+        padding: 2rem;
+        margin-top: 2rem;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .nav-button {
+        background: linear-gradient(45deg, #10b981, #059669);
+        border: none;
+        border-radius: 12px;
+        padding: 1rem 2rem;
+        color: white;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        transition: all 0.3s ease;
+        font-weight: 600;
+        box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+    }
+
+    .nav-button:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
+        color: white;
+        text-decoration: none;
+    }
+
+    .nav-button.secondary {
+        background: linear-gradient(45deg, #6366f1, #8b5cf6);
+        box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+    }
+
+    .nav-button.secondary:hover {
+        box-shadow: 0 8px 25px rgba(99, 102, 241, 0.4);
+    }
+
+    .form-control:focus {
+        border-color: #4f46e5;
+        box-shadow: 0 0 0 0.2rem rgba(79, 70, 229, 0.25);
+    }
+
+    .alert-info {
+        background: linear-gradient(45deg, rgba(79, 70, 229, 0.1), rgba(124, 58, 237, 0.1));
+        border: 1px solid rgba(79, 70, 229, 0.2);
+        color: #4f46e5;
+        border-radius: 12px;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-8">
-        <div class="card">
-            <div class="card-header">
-                <h3 class="mb-0">
-                    <i class="fas fa-upload"></i> Upload un PDF
-                </h3>
-            </div>
-            <div class="card-body">
-                <form method="post" enctype="multipart/form-data" id="uploadForm">
-                    {% csrf_token %}
-                    
-                    <div class="mb-3">
-                        <label for="title" class="form-label">Titre du document</label>
-                        <input type="text" class="form-control" id="title" name="title" 
-                               placeholder="Entrez le titre du document (optionnel)">
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="pdf_file" class="form-label">Fichier PDF</label>
-                        <div class="upload-area" id="uploadArea">
-                            <i class="fas fa-cloud-upload-alt fa-3x text-primary mb-3"></i>
-                            <h5>Glissez-déposez votre PDF ici</h5>
-                            <p class="text-muted">ou cliquez pour sélectionner un fichier</p>
-                            <input type="file" class="form-control" id="pdf_file" name="pdf_file" 
-                                   accept=".pdf" required style="display: none;">
-                            <button type="button" class="btn btn-outline-primary" onclick="document.getElementById('pdf_file').click();">
-                                <i class="fas fa-folder-open"></i> Sélectionner un fichier
-                            </button>
-                        </div>
-                        <div id="fileInfo" class="mt-2" style="display: none;">
-                            <div class="alert alert-info">
-                                <i class="fas fa-file-pdf"></i> 
-                                <span id="fileName"></span>
-                                <span class="badge bg-secondary ms-2" id="fileSize"></span>
+<div class="content-wrapper">
+    <div class="text-center mb-5">
+        <h1 class="display-5 fw-bold text-primary mb-3">
+            <i class="fas fa-cloud-upload-alt me-3"></i>Upload un PDF
+        </h1>
+        <p class="lead text-muted">Téléchargez votre document PDF pour le visualiser et l'annoter</p>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card upload-card">
+                <div class="card-body p-4">
+                    <form method="post" enctype="multipart/form-data" id="uploadForm">
+                        {% csrf_token %}
+                        
+                        <div class="mb-4">
+                            <label for="title" class="form-label fw-semibold">
+                                <i class="fas fa-heading me-2"></i>Titre du document
+                            </label>
+                            <input type="text" class="form-control form-control-lg" id="title" name="title" 
+                                   placeholder="Entrez le titre du document (optionnel)">
+                            <div class="form-text">
+                                <i class="fas fa-info-circle me-1"></i>Le titre sera automatiquement généré à partir du nom de fichier si laissé vide
                             </div>
                         </div>
-                    </div>
-                    
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-primary btn-lg">
-                            <i class="fas fa-upload"></i> Uploader le PDF
-                        </button>
-                    </div>
-                </form>
+                        
+                        <div class="mb-4">
+                            <label for="pdf_file" class="form-label fw-semibold">
+                                <i class="fas fa-file-pdf me-2"></i>Fichier PDF
+                            </label>
+                            <div class="upload-area" id="uploadArea">
+                                <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                                <h4 class="text-primary mb-2">Glissez-déposez votre PDF ici</h4>
+                                <p class="text-muted mb-3">ou cliquez pour sélectionner un fichier</p>
+                                <input type="file" class="form-control" id="pdf_file" name="pdf_file" 
+                                       accept=".pdf" required style="display: none;">
+                                <button type="button" class="btn btn-primary btn-lg" onclick="document.getElementById('pdf_file').click();">
+                                    <i class="fas fa-folder-open me-2"></i>Sélectionner un fichier
+                                </button>
+                                <div class="mt-3">
+                                    <small class="text-muted">
+                                        <i class="fas fa-info-circle me-1"></i>
+                                        Format PDF uniquement, taille maximale 50MB
+                                    </small>
+                                </div>
+                            </div>
+                            <div id="fileInfo" class="mt-3" style="display: none;">
+                                <div class="alert alert-info">
+                                    <i class="fas fa-file-pdf me-2"></i> 
+                                    <span id="fileName" class="fw-semibold"></span>
+                                    <span class="badge bg-primary ms-2" id="fileSize"></span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary btn-lg py-3">
+                                <i class="fas fa-upload me-2"></i>Uploader le PDF
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation vers d'autres fonctionnalités -->
+    <div class="navigation-section">
+        <h4 class="text-center mb-4">
+            <i class="fas fa-compass me-2"></i>Autres fonctionnalités
+        </h4>
+        <div class="row text-center">
+            <div class="col-md-4 mb-3">
+                <a href="{% url 'edition:list_pdfs' %}" class="nav-button w-100">
+                    <i class="fas fa-list me-2"></i>Mes Documents
+                </a>
+            </div>
+            <div class="col-md-4 mb-3">
+                <a href="{% url 'upload_pdf' %}" class="nav-button secondary w-100">
+                    <i class="fas fa-extract me-2"></i>Extraire PDF
+                </a>
+            </div>
+            <div class="col-md-4 mb-3">
+                <button type="button" class="nav-button w-100" onclick="window.location.reload();">
+                    <i class="fas fa-redo me-2"></i>Nouveau Upload
+                </button>
             </div>
         </div>
     </div>
@@ -63,6 +202,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const fileName = document.getElementById('fileName');
     const fileSize = document.getElementById('fileSize');
     const titleInput = document.getElementById('title');
+    const uploadForm = document.getElementById('uploadForm');
     
     // Drag and drop functionality
     uploadArea.addEventListener('dragover', function(e) {
@@ -83,7 +223,14 @@ document.addEventListener('DOMContentLoaded', function() {
         if (files.length > 0 && files[0].type === 'application/pdf') {
             fileInput.files = files;
             updateFileInfo(files[0]);
+        } else {
+            alert('Veuillez sélectionner un fichier PDF valide.');
         }
+    });
+    
+    // Click to upload
+    uploadArea.addEventListener('click', function() {
+        fileInput.click();
     });
     
     // File input change
@@ -93,7 +240,28 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
+    // Form submission with loading state
+    uploadForm.addEventListener('submit', function(e) {
+        const submitBtn = uploadForm.querySelector('button[type="submit"]');
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Upload en cours...';
+        submitBtn.disabled = true;
+    });
+    
     function updateFileInfo(file) {
+        // Validate file type
+        if (file.type !== 'application/pdf') {
+            alert('Veuillez sélectionner un fichier PDF valide.');
+            fileInput.value = '';
+            return;
+        }
+        
+        // Validate file size (50MB max)
+        if (file.size > 50 * 1024 * 1024) {
+            alert('Le fichier est trop volumineux. Taille maximale : 50MB.');
+            fileInput.value = '';
+            return;
+        }
+        
         fileName.textContent = file.name;
         fileSize.textContent = formatFileSize(file.size);
         fileInfo.style.display = 'block';
@@ -102,6 +270,16 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!titleInput.value) {
             titleInput.value = file.name.replace('.pdf', '');
         }
+        
+        // Update upload area appearance
+        uploadArea.innerHTML = `
+            <i class="fas fa-check-circle text-success" style="font-size: 4rem; margin-bottom: 1rem;"></i>
+            <h4 class="text-success mb-2">Fichier sélectionné</h4>
+            <p class="text-muted mb-3">${file.name}</p>
+            <button type="button" class="btn btn-outline-primary" onclick="document.getElementById('pdf_file').click();">
+                <i class="fas fa-exchange-alt me-2"></i>Changer de fichier
+            </button>
+        `;
     }
     
     function formatFileSize(bytes) {

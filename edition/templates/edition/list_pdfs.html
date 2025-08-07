@@ -1,90 +1,190 @@
-{% extends 'edition/base.html' %}
+{% extends 'base.html' %}
 
 {% block title %}Mes PDFs - PDF Edition{% endblock %}
 
-{% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="fas fa-file-pdf"></i> Mes Documents PDF</h2>
-    <a href="{% url 'edition:upload_pdf' %}" class="btn btn-primary">
-        <i class="fas fa-plus"></i> Nouveau PDF
-    </a>
-</div>
+{% block extra_css %}
+<style>
+    .document-card {
+        transition: all 0.3s ease;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border-radius: 15px;
+        overflow: hidden;
+    }
 
-{% if documents %}
-    <div class="row">
-        {% for document in documents %}
-            <div class="col-md-6 col-lg-4 mb-4">
-                <div class="card h-100">
-                    <div class="card-body">
-                        <h5 class="card-title">
-                            <i class="fas fa-file-pdf text-danger"></i>
-                            {{ document.title }}
-                        </h5>
-                        <p class="card-text">
-                            <small class="text-muted">
-                                <i class="fas fa-calendar"></i> 
-                                Uploadé le {{ document.uploaded_at|date:"d/m/Y à H:i" }}
-                            </small>
-                        </p>
-                        <p class="card-text">
-                            <small class="text-muted">
-                                <i class="fas fa-file"></i> 
-                                {{ document.filename }}
-                            </small>
-                        </p>
-                        {% if document.uploaded_by %}
+    .document-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+    }
+
+    .card-header-custom {
+        background: linear-gradient(45deg, #4f46e5, #7c3aed);
+        color: white;
+        border: none;
+        padding: 1.5rem;
+    }
+
+    .empty-state {
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 20px;
+        padding: 4rem 2rem;
+        text-align: center;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .navigation-actions {
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 15px;
+        padding: 2rem;
+        margin: 2rem 0;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .action-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 12px;
+        padding: 1.5rem;
+        color: white;
+        text-decoration: none;
+        display: block;
+        transition: all 0.3s ease;
+        border: none;
+    }
+
+    .action-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        color: white;
+        text-decoration: none;
+    }
+
+    .action-card i {
+        font-size: 2rem;
+        margin-bottom: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+    <div class="d-flex justify-content-between align-items-center mb-5">
+        <div>
+            <h1 class="display-5 fw-bold text-primary mb-2">
+                <i class="fas fa-file-pdf me-3"></i>Mes Documents PDF
+            </h1>
+            <p class="lead text-muted">Gérez et éditez vos documents PDF en toute simplicité</p>
+        </div>
+        <a href="{% url 'edition:upload_pdf' %}" class="btn btn-primary btn-lg">
+            <i class="fas fa-plus me-2"></i>Nouveau PDF
+        </a>
+    </div>
+
+    {% if documents %}
+        <div class="row">
+            {% for document in documents %}
+                <div class="col-md-6 col-xl-4 mb-4">
+                    <div class="card document-card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title d-flex align-items-center">
+                                <i class="fas fa-file-pdf text-danger me-2"></i>
+                                {{ document.title }}
+                            </h5>
                             <p class="card-text">
                                 <small class="text-muted">
-                                    <i class="fas fa-user"></i> 
-                                    Par {{ document.uploaded_by.username }}
+                                    <i class="fas fa-calendar me-1"></i> 
+                                    {{ document.uploaded_at|date:"d/m/Y à H:i" }}
                                 </small>
                             </p>
-                        {% endif %}
-                    </div>
-                    <div class="card-footer bg-transparent">
-                        <div class="d-grid gap-2">
-                            <a href="{% url 'edition:view_pdf' document.id %}" class="btn btn-primary">
-                                <i class="fas fa-eye"></i> Voir & Éditer
-                            </a>
-                            <a href="{{ document.pdf_file.url }}" class="btn btn-outline-secondary" target="_blank">
-                                <i class="fas fa-download"></i> Télécharger
-                            </a>
+                            <p class="card-text">
+                                <small class="text-muted">
+                                    <i class="fas fa-file me-1"></i> 
+                                    {{ document.filename }}
+                                </small>
+                            </p>
+                            {% if document.uploaded_by %}
+                                <p class="card-text">
+                                    <small class="text-muted">
+                                        <i class="fas fa-user me-1"></i> 
+                                        {{ document.uploaded_by.username }}
+                                    </small>
+                                </p>
+                            {% endif %}
+                        </div>
+                        <div class="card-footer bg-transparent">
+                            <div class="d-grid gap-2">
+                                <a href="{% url 'edition:view_pdf' document.id %}" class="btn btn-primary">
+                                    <i class="fas fa-eye me-2"></i>Voir & Éditer
+                                </a>
+                                <a href="{{ document.pdf_file.url }}" class="btn btn-outline-secondary" target="_blank">
+                                    <i class="fas fa-download me-2"></i>Télécharger
+                                </a>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-        {% endfor %}
-    </div>
-    
-    {% if documents.count > 6 %}
-        <nav aria-label="Navigation des pages">
-            <ul class="pagination justify-content-center">
-                <li class="page-item">
-                    <a class="page-link" href="#" aria-label="Précédent">
-                        <span aria-hidden="true">&laquo;</span>
-                    </a>
-                </li>
-                <li class="page-item active"><a class="page-link" href="#">1</a></li>
-                <li class="page-item"><a class="page-link" href="#">2</a></li>
-                <li class="page-item"><a class="page-link" href="#">3</a></li>
-                <li class="page-item">
-                    <a class="page-link" href="#" aria-label="Suivant">
-                        <span aria-hidden="true">&raquo;</span>
-                    </a>
-                </li>
-            </ul>
-        </nav>
-    {% endif %}
-{% else %}
-    <div class="text-center py-5">
-        <div class="mb-4">
-            <i class="fas fa-file-pdf fa-5x text-muted"></i>
+            {% endfor %}
         </div>
-        <h3 class="text-muted">Aucun PDF uploadé</h3>
-        <p class="text-muted mb-4">Commencez par uploader votre premier document PDF.</p>
-        <a href="{% url 'edition:upload_pdf' %}" class="btn btn-primary btn-lg">
-            <i class="fas fa-upload"></i> Upload mon premier PDF
-        </a>
+        
+        {% if documents.count > 6 %}
+            <nav aria-label="Navigation des pages">
+                <ul class="pagination justify-content-center">
+                    <li class="page-item">
+                        <a class="page-link" href="#" aria-label="Précédent">
+                            <span aria-hidden="true">&laquo;</span>
+                        </a>
+                    </li>
+                    <li class="page-item active"><a class="page-link" href="#">1</a></li>
+                    <li class="page-item"><a class="page-link" href="#">2</a></li>
+                    <li class="page-item"><a class="page-link" href="#">3</a></li>
+                    <li class="page-item">
+                        <a class="page-link" href="#" aria-label="Suivant">
+                            <span aria-hidden="true">&raquo;</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        {% endif %}
+    {% else %}
+        <div class="empty-state">
+            <div class="mb-4">
+                <i class="fas fa-file-pdf fa-5x text-primary"></i>
+            </div>
+            <h3 class="text-primary mb-3">Aucun PDF uploadé</h3>
+            <p class="text-muted mb-4 lead">Commencez par uploader votre premier document PDF pour le visualiser et l'éditer.</p>
+            <a href="{% url 'edition:upload_pdf' %}" class="btn btn-primary btn-lg">
+                <i class="fas fa-upload me-2"></i>Upload mon premier PDF
+            </a>
+        </div>
+    {% endif %}
+
+    <!-- Actions de navigation -->
+    <div class="navigation-actions mt-5">
+        <h4 class="text-center mb-4">
+            <i class="fas fa-tools me-2"></i>Autres outils disponibles
+        </h4>
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <a href="{% url 'upload_pdf' %}" class="action-card">
+                    <div class="text-center">
+                        <i class="fas fa-extract"></i>
+                        <h5 class="mt-2 mb-1">Extracteur PDF</h5>
+                        <p class="mb-0">Extrayez du texte, tableaux et images de vos PDF</p>
+                    </div>
+                </a>
+            </div>
+            <div class="col-md-6 mb-3">
+                <a href="{% url 'edition:upload_pdf' %}" class="action-card">
+                    <div class="text-center">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <h5 class="mt-2 mb-1">Upload & Visualiser</h5>
+                        <p class="mb-0">Téléchargez un nouveau PDF pour l'annoter</p>
+                    </div>
+                </a>
+            </div>
+        </div>
     </div>
-{% endif %}
+</div>
 {% endblock %}

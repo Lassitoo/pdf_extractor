@@ -1,95 +1,519 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Extracteur PDF - Texte, Tableaux & Images</title>
-    {% load static %}
-    <link rel="stylesheet" href="{% static 'css/style.css' %}">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-</head>
-<body>
-    <div class="container">
-        <!-- Header -->
-        <div class="header">
-            <h1>Extracteur PDF Intelligent</h1>
-            <p>Extrayez facilement du texte, des tableaux et des images de vos documents PDF</p>
-        </div>
+{% extends 'base.html' %}
 
-        <!-- Zone d'upload -->
-        <div class="upload-section" id="upload-section">
-            <form id="upload-form" class="upload-form">
-                {% csrf_token %}
-                <label for="pdf-file" class="file-input-wrapper">
-                    <input type="file" id="pdf-file" class="file-input" accept="application/pdf" required>
-                    📁 Choisir un fichier PDF
-                </label>
-                
-                <div class="file-info">
-                    Format PDF uniquement, taille maximale 10MB
-                </div>
-                
-                <button type="submit" class="upload-btn" id="upload-btn">
-                    🚀 Extraire le contenu
-                </button>
-            </form>
-        </div>
+{% block title %}Extracteur PDF - Texte, Tableaux & Images{% endblock %}
 
-        <!-- Zone de chargement -->
-        <div class="loading" id="loading">
-            <div class="spinner"></div>
-            <h3>Extraction en cours...</h3>
-            <p>Analyse du PDF et extraction du contenu. Cela peut prendre quelques secondes.</p>
-        </div>
+{% block extra_css %}
+<style>
+    .upload-section {
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 20px;
+        padding: 3rem;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        margin: 2rem 0;
+    }
 
-        <!-- Alerte d'erreur -->
-        <div class="alert alert-error" id="error-alert" style="display: none;"></div>
+    .file-input-wrapper {
+        display: inline-block;
+        position: relative;
+        overflow: hidden;
+        background: linear-gradient(45deg, #4f46e5, #7c3aed);
+        color: white;
+        padding: 1rem 2rem;
+        border-radius: 15px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-weight: 600;
+        font-size: 1.1rem;
+        box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3);
+        border: none;
+        margin: 1rem;
+    }
 
-        <!-- Zone des résultats -->
-        <div class="results-section" id="results-section">
-            <div class="results-header">
-                <h2>Résultats de l'extraction</h2>
-                <div class="results-stats">
-                    <!-- Les statistiques seront ajoutées dynamiquement -->
-                </div>
+    .file-input-wrapper:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 25px rgba(79, 70, 229, 0.4);
+    }
+
+    .file-input {
+        position: absolute;
+        left: -9999px;
+    }
+
+    .file-info {
+        color: #6b7280;
+        font-size: 0.9rem;
+        margin: 1rem 0;
+        text-align: center;
+    }
+
+    .upload-btn {
+        background: linear-gradient(45deg, #10b981, #059669);
+        border: none;
+        color: white;
+        padding: 1rem 2.5rem;
+        border-radius: 15px;
+        font-weight: 600;
+        font-size: 1.1rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+        margin: 1rem;
+    }
+
+    .upload-btn:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
+        background: linear-gradient(45deg, #059669, #047857);
+    }
+
+    .loading {
+        display: none;
+        text-align: center;
+        padding: 3rem;
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 20px;
+        margin: 2rem 0;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+    }
+
+    .spinner {
+        border: 4px solid #f3f4f6;
+        border-top: 4px solid #4f46e5;
+        border-radius: 50%;
+        width: 50px;
+        height: 50px;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 1rem;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    .results-section {
+        display: none;
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 20px;
+        padding: 2rem;
+        margin: 2rem 0;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .tabs {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 2rem;
+        flex-wrap: wrap;
+    }
+
+    .tab {
+        padding: 0.75rem 1.5rem;
+        border: 2px solid #e5e7eb;
+        background: white;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-weight: 500;
+    }
+
+    .tab.active {
+        background: #4f46e5;
+        color: white;
+        border-color: #4f46e5;
+    }
+
+    .tab:hover:not(.active) {
+        border-color: #4f46e5;
+        color: #4f46e5;
+    }
+
+    .tab-content {
+        display: none;
+        padding: 1.5rem;
+        background: #f8fafc;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+    }
+
+    .tab-content.active {
+        display: block;
+    }
+
+    .navigation-buttons {
+        display: flex;
+        justify-content: center;
+        gap: 1rem;
+        margin: 2rem 0;
+        flex-wrap: wrap;
+    }
+
+    .nav-card {
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 15px;
+        padding: 2rem;
+        text-align: center;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        flex: 1;
+        min-width: 250px;
+        max-width: 350px;
+    }
+
+    .nav-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+    }
+
+    .nav-card i {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        color: #4f46e5;
+    }
+
+    .nav-card h3 {
+        color: #1f2937;
+        margin-bottom: 1rem;
+        font-weight: 600;
+    }
+
+    .nav-card p {
+        color: #6b7280;
+        margin-bottom: 1.5rem;
+    }
+
+    .alert-error {
+        background: #fef2f2;
+        border: 1px solid #fecaca;
+        color: #dc2626;
+        padding: 1rem;
+        border-radius: 12px;
+        margin: 1rem 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+    <!-- Header -->
+    <div class="text-center mb-5">
+        <h1 class="display-4 fw-bold text-primary mb-3">
+            <i class="fas fa-file-pdf me-3"></i>Extracteur PDF Intelligent
+        </h1>
+        <p class="lead text-muted">Extrayez facilement du texte, des tableaux et des images de vos documents PDF</p>
+    </div>
+
+    <!-- Zone d'upload -->
+    <div class="upload-section text-center" id="upload-section">
+        <form id="upload-form" class="upload-form">
+            {% csrf_token %}
+            <div class="mb-4">
+                <i class="fas fa-cloud-upload-alt text-primary" style="font-size: 4rem; margin-bottom: 1rem;"></i>
+                <h3 class="mb-3">Sélectionnez votre fichier PDF</h3>
             </div>
             
-            <div class="results-content">
-                <!-- Onglets de navigation -->
-                <div class="tabs">
-                    <button class="tab active" data-tab="text-content">📝 Texte</button>
-                    <button class="tab" data-tab="positioned-content">📍 Texte Positionnel</button>
-                    <button class="tab" data-tab="tables-content">📊 Tableaux</button>
-                    <button class="tab" data-tab="images-content">🖼️ Images</button>
-                </div>
+            <label for="pdf-file" class="file-input-wrapper">
+                <input type="file" id="pdf-file" class="file-input" accept="application/pdf" required>
+                <i class="fas fa-folder-open me-2"></i>Choisir un fichier PDF
+            </label>
+            
+            <div class="file-info">
+                <i class="fas fa-info-circle me-1"></i>Format PDF uniquement, taille maximale 10MB
+            </div>
+            
+            <button type="submit" class="upload-btn" id="upload-btn">
+                <i class="fas fa-rocket me-2"></i>Extraire le contenu
+            </button>
+        </form>
+    </div>
 
-                <!-- Contenu des onglets -->
-                
-                <!-- Onglet Texte -->
-                <div id="text-content" class="tab-content active">
-                    <!-- Le contenu du texte sera ajouté dynamiquement -->
-                </div>
+    <!-- Zone de chargement -->
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <h3 class="text-primary">Extraction en cours...</h3>
+        <p class="text-muted">Analyse du PDF et extraction du contenu. Cela peut prendre quelques secondes.</p>
+    </div>
 
-                <!-- Onglet Texte Positionnel -->
-                <div id="positioned-content" class="tab-content">
-                    <!-- Le contenu positionnel sera ajouté dynamiquement -->
-                </div>
+    <!-- Alerte d'erreur -->
+    <div class="alert alert-danger alert-error" id="error-alert" style="display: none;"></div>
 
-                <!-- Onglet Tableaux -->
-                <div id="tables-content" class="tab-content">
-                    <!-- Les tableaux seront ajoutés dynamiquement -->
-                </div>
+    <!-- Zone des résultats -->
+    <div class="results-section" id="results-section">
+        <div class="results-header text-center mb-4">
+            <h2 class="text-primary">Résultats de l'extraction</h2>
+            <div class="results-stats">
+                <!-- Les statistiques seront ajoutées dynamiquement -->
+            </div>
+        </div>
+        
+        <div class="results-content">
+            <!-- Onglets de navigation -->
+            <div class="tabs">
+                <button class="tab active" data-tab="text-content">
+                    <i class="fas fa-file-text me-2"></i>Texte
+                </button>
+                <button class="tab" data-tab="positioned-content">
+                    <i class="fas fa-map-marker-alt me-2"></i>Texte Positionnel
+                </button>
+                <button class="tab" data-tab="tables-content">
+                    <i class="fas fa-table me-2"></i>Tableaux
+                </button>
+                <button class="tab" data-tab="images-content">
+                    <i class="fas fa-images me-2"></i>Images
+                </button>
+            </div>
 
-                <!-- Onglet Images -->
-                <div id="images-content" class="tab-content">
-                    <!-- Les images seront ajoutées dynamiquement -->
-                </div>
+            <!-- Contenu des onglets -->
+            <div id="text-content" class="tab-content active">
+                <!-- Le contenu du texte sera ajouté dynamiquement -->
+            </div>
+
+            <div id="positioned-content" class="tab-content">
+                <!-- Le contenu positionnel sera ajouté dynamiquement -->
+            </div>
+
+            <div id="tables-content" class="tab-content">
+                <!-- Les tableaux seront ajoutés dynamiquement -->
+            </div>
+
+            <div id="images-content" class="tab-content">
+                <!-- Les images seront ajoutées dynamiquement -->
             </div>
         </div>
     </div>
 
-    <script src="{% static 'js/app.js' %}"></script>
-</body>
-</html>
+    <!-- Boutons de navigation -->
+    <div class="navigation-buttons mt-5">
+        <div class="nav-card">
+            <i class="fas fa-edit"></i>
+            <h3>Édition PDF</h3>
+            <p>Visualisez et éditez vos documents PDF avec des outils d'annotation avancés</p>
+            <a href="{% url 'edition:list_pdfs' %}" class="btn btn-primary">
+                <i class="fas fa-arrow-right me-2"></i>Accéder à l'édition
+            </a>
+        </div>
+        
+        <div class="nav-card">
+            <i class="fas fa-upload"></i>
+            <h3>Upload & Visualiser</h3>
+            <p>Téléchargez un nouveau PDF pour le visualiser et l'annoter directement</p>
+            <a href="{% url 'edition:upload_pdf' %}" class="btn btn-outline-primary">
+                <i class="fas fa-cloud-upload-alt me-2"></i>Upload PDF
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+// Code JavaScript pour l'upload et l'affichage des résultats
+document.addEventListener('DOMContentLoaded', function() {
+    const uploadForm = document.getElementById('upload-form');
+    const uploadSection = document.getElementById('upload-section');
+    const loading = document.getElementById('loading');
+    const resultsSection = document.getElementById('results-section');
+    const errorAlert = document.getElementById('error-alert');
+
+    // Gestion des onglets
+    const tabs = document.querySelectorAll('.tab');
+    const tabContents = document.querySelectorAll('.tab-content');
+
+    tabs.forEach(tab => {
+        tab.addEventListener('click', function() {
+            const targetTab = this.dataset.tab;
+            
+            tabs.forEach(t => t.classList.remove('active'));
+            tabContents.forEach(tc => tc.classList.remove('active'));
+            
+            this.classList.add('active');
+            document.getElementById(targetTab).classList.add('active');
+        });
+    });
+
+    // Affichage du nom de fichier sélectionné
+    const fileInput = document.getElementById('pdf-file');
+    const fileInputWrapper = document.querySelector('.file-input-wrapper');
+    
+    fileInput.addEventListener('change', function() {
+        if (this.files && this.files[0]) {
+            const fileName = this.files[0].name;
+            fileInputWrapper.innerHTML = `<i class="fas fa-file-pdf me-2"></i>${fileName}`;
+        }
+    });
+
+    uploadForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const fileInput = document.getElementById('pdf-file');
+        const file = fileInput.files[0];
+        
+        if (!file) {
+            showError('Veuillez sélectionner un fichier PDF.');
+            return;
+        }
+        
+        if (file.type !== 'application/pdf') {
+            showError('Veuillez sélectionner un fichier PDF valide.');
+            return;
+        }
+        
+        if (file.size > 10 * 1024 * 1024) { // 10MB
+            showError('Le fichier est trop volumineux. Taille maximale : 10MB.');
+            return;
+        }
+        
+        // Afficher le loading
+        uploadSection.style.display = 'none';
+        loading.style.display = 'block';
+        errorAlert.style.display = 'none';
+        
+        // Préparer les données du formulaire
+        const formData = new FormData();
+        formData.append('pdf_file', file);
+        formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+        
+        // Envoyer la requête
+        fetch('{% url "process_pdf" %}', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            loading.style.display = 'none';
+            
+            if (data.success) {
+                displayResults(data);
+            } else {
+                showError(data.error || 'Une erreur est survenue lors du traitement du fichier.');
+            }
+        })
+        .catch(error => {
+            loading.style.display = 'none';
+            showError('Erreur de connexion. Veuillez réessayer.');
+            console.error('Erreur:', error);
+        });
+    });
+    
+    function showError(message) {
+        errorAlert.textContent = message;
+        errorAlert.style.display = 'block';
+        uploadSection.style.display = 'block';
+    }
+    
+    function displayResults(data) {
+        // Afficher les statistiques
+        const statsContainer = document.querySelector('.results-stats');
+        statsContainer.innerHTML = `
+            <div class="row text-center">
+                <div class="col-md-3">
+                    <div class="stat-item">
+                        <h4 class="text-primary">${data.pages_count || 0}</h4>
+                        <p class="text-muted">Pages</p>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-item">
+                        <h4 class="text-primary">${data.text_blocks_count || 0}</h4>
+                        <p class="text-muted">Blocs de texte</p>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-item">
+                        <h4 class="text-primary">${data.tables_count || 0}</h4>
+                        <p class="text-muted">Tableaux</p>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-item">
+                        <h4 class="text-primary">${data.images_count || 0}</h4>
+                        <p class="text-muted">Images</p>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Afficher le contenu textuel
+        const textContent = document.getElementById('text-content');
+        if (data.text_content) {
+            textContent.innerHTML = `
+                <div class="content-block">
+                    <h4><i class="fas fa-file-text me-2"></i>Texte extrait</h4>
+                    <div class="text-content-wrapper" style="background: white; padding: 1.5rem; border-radius: 8px; border: 1px solid #e2e8f0; white-space: pre-wrap; font-family: 'Courier New', monospace; max-height: 500px; overflow-y: auto;">
+                        ${data.text_content}
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Afficher le contenu positionnel
+        const positionedContent = document.getElementById('positioned-content');
+        if (data.positioned_content && data.positioned_content.length > 0) {
+            let positionedHtml = '<h4><i class="fas fa-map-marker-alt me-2"></i>Texte avec positions</h4>';
+            data.positioned_content.forEach(item => {
+                positionedHtml += `
+                    <div class="positioned-item mb-3 p-3" style="background: white; border-radius: 8px; border: 1px solid #e2e8f0;">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <strong>Texte:</strong> ${item.text}
+                            </div>
+                            <div class="col-md-4">
+                                <small class="text-muted">
+                                    Page: ${item.page}<br>
+                                    Position: (${Math.round(item.x)}, ${Math.round(item.y)})
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            positionedContent.innerHTML = positionedHtml;
+        }
+        
+        // Afficher les tableaux
+        const tablesContent = document.getElementById('tables-content');
+        if (data.tables && data.tables.length > 0) {
+            let tablesHtml = '<h4><i class="fas fa-table me-2"></i>Tableaux extraits</h4>';
+            data.tables.forEach((table, index) => {
+                tablesHtml += `
+                    <div class="table-item mb-4">
+                        <h5>Tableau ${index + 1}</h5>
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-striped">
+                                ${table.html}
+                            </table>
+                        </div>
+                    </div>
+                `;
+            });
+            tablesContent.innerHTML = tablesHtml;
+        }
+        
+        // Afficher les images
+        const imagesContent = document.getElementById('images-content');
+        if (data.images && data.images.length > 0) {
+            let imagesHtml = '<h4><i class="fas fa-images me-2"></i>Images extraites</h4><div class="row">';
+            data.images.forEach((image, index) => {
+                imagesHtml += `
+                    <div class="col-md-6 col-lg-4 mb-3">
+                        <div class="card">
+                            <img src="data:image/png;base64,${image.data}" class="card-img-top" alt="Image ${index + 1}" style="max-height: 200px; object-fit: contain;">
+                            <div class="card-body">
+                                <p class="card-text"><small class="text-muted">Image ${index + 1} - Page ${image.page}</small></p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            imagesHtml += '</div>';
+            imagesContent.innerHTML = imagesHtml;
+        }
+        
+        resultsSection.style.display = 'block';
+    }
+});
+</script>
+{% endblock %}
