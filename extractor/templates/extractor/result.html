@@ -1,0 +1,523 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Résultats - PDF Tools{% endblock %}
+
+{% block extra_css %}
+<style>
+    .results-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2rem;
+        border-radius: 15px;
+        margin-bottom: 2rem;
+    }
+    
+    .stats-card {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        padding: 1rem;
+        text-align: center;
+        margin: 0.5rem;
+    }
+    
+    .stats-card h4 {
+        font-size: 2rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+    }
+    
+    .stats-card p {
+        margin: 0;
+        opacity: 0.9;
+    }
+    
+    .results-section {
+        background: white;
+        border-radius: 15px;
+        padding: 2rem;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        margin-bottom: 2rem;
+    }
+    
+    .tabs {
+        display: flex;
+        border-bottom: 2px solid #f0f0f0;
+        margin-bottom: 2rem;
+        flex-wrap: wrap;
+    }
+    
+    .tab {
+        background: none;
+        border: none;
+        padding: 1rem 1.5rem;
+        cursor: pointer;
+        font-weight: 500;
+        color: #666;
+        border-bottom: 3px solid transparent;
+        transition: all 0.3s ease;
+        margin-right: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .tab.active {
+        color: #667eea;
+        border-bottom-color: #667eea;
+    }
+    
+    .tab:hover {
+        color: #667eea;
+        background: #f8f9ff;
+    }
+    
+    .tab-content {
+        display: none;
+    }
+    
+    .tab-content.active {
+        display: block;
+    }
+    
+    .text-content {
+        background: #f8f9fa;
+        border-radius: 10px;
+        padding: 1.5rem;
+        font-family: 'Courier New', monospace;
+        white-space: pre-wrap;
+        max-height: 500px;
+        overflow-y: auto;
+        border: 1px solid #e9ecef;
+    }
+    
+    .table-container {
+        overflow-x: auto;
+        margin-bottom: 2rem;
+    }
+    
+    .extracted-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 1rem;
+        background: white;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+    
+    .extracted-table th,
+    .extracted-table td {
+        padding: 0.75rem;
+        text-align: left;
+        border-bottom: 1px solid #dee2e6;
+    }
+    
+    .extracted-table th {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        font-weight: 600;
+    }
+    
+    .extracted-table tbody tr:hover {
+        background: #f8f9ff;
+    }
+    
+    .images-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 1.5rem;
+        margin-top: 1rem;
+    }
+    
+    .image-card {
+        background: white;
+        border-radius: 10px;
+        padding: 1rem;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        transition: transform 0.3s ease;
+    }
+    
+    .image-card:hover {
+        transform: translateY(-5px);
+    }
+    
+    .image-card img {
+        width: 100%;
+        height: 200px;
+        object-fit: contain;
+        border-radius: 8px;
+        background: #f8f9fa;
+        border: 1px solid #e9ecef;
+    }
+    
+    .image-info {
+        margin-top: 1rem;
+        font-size: 0.9rem;
+        color: #666;
+    }
+    
+    .download-btn {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        text-decoration: none;
+        display: inline-block;
+        margin-top: 0.5rem;
+        transition: all 0.3s ease;
+    }
+    
+    .download-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        color: white;
+    }
+    
+    .action-buttons {
+        margin-bottom: 2rem;
+    }
+    
+    .positioned-text {
+        background: #f8f9fa;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        border-left: 4px solid #667eea;
+    }
+    
+    .positioned-text h6 {
+        color: #667eea;
+        font-weight: 600;
+        margin-bottom: 1rem;
+    }
+    
+    .text-block {
+        background: white;
+        padding: 1rem;
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+        border: 1px solid #e9ecef;
+        font-family: 'Courier New', monospace;
+        font-size: 0.9rem;
+    }
+    
+    .coordinates {
+        font-size: 0.8rem;
+        color: #666;
+        margin-bottom: 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Header avec statistiques -->
+    <div class="results-header">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <h1><i class="fas fa-chart-line me-2"></i>Résultats de l'extraction</h1>
+                <p class="mb-0">Document traité avec succès</p>
+            </div>
+            <div class="col-md-6">
+                <div class="row">
+                    <div class="col-4">
+                        <div class="stats-card">
+                            <h4 id="textCount">-</h4>
+                            <p>Pages</p>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="stats-card">
+                            <h4 id="tableCount">-</h4>
+                            <p>Tableaux</p>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="stats-card">
+                            <h4 id="imageCount">-</h4>
+                            <p>Images</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Boutons d'action -->
+    <div class="action-buttons text-center">
+        <a href="{% url 'upload_pdf' %}" class="btn btn-primary-custom me-3">
+            <i class="fas fa-plus me-2"></i>Nouveau PDF
+        </a>
+        <a href="{% url 'edition:upload_pdf' %}" class="btn btn-secondary-custom">
+            <i class="fas fa-edit me-2"></i>Éditer un PDF
+        </a>
+    </div>
+
+    <!-- Zone des résultats -->
+    <div class="results-section">
+        <!-- Onglets de navigation -->
+        <div class="tabs">
+            <button class="tab active" data-tab="text-content">
+                <i class="fas fa-file-text me-1"></i>Texte Extrait
+            </button>
+            <button class="tab" data-tab="positioned-content">
+                <i class="fas fa-map-marker-alt me-1"></i>Texte Positionnel
+            </button>
+            <button class="tab" data-tab="tables-content">
+                <i class="fas fa-table me-1"></i>Tableaux
+            </button>
+            <button class="tab" data-tab="images-content">
+                <i class="fas fa-images me-1"></i>Images
+            </button>
+        </div>
+
+        <!-- Contenu des onglets -->
+        
+        <!-- Onglet Texte -->
+        <div id="text-content" class="tab-content active">
+            <h4><i class="fas fa-file-text me-2"></i>Texte extrait du PDF</h4>
+            <div class="text-content" id="extractedText">
+                Chargement du texte...
+            </div>
+        </div>
+
+        <!-- Onglet Texte Positionnel -->
+        <div id="positioned-content" class="tab-content">
+            <h4><i class="fas fa-map-marker-alt me-2"></i>Texte avec positions</h4>
+            <div id="positionedText">
+                Chargement du texte positionnel...
+            </div>
+        </div>
+
+        <!-- Onglet Tableaux -->
+        <div id="tables-content" class="tab-content">
+            <h4><i class="fas fa-table me-2"></i>Tableaux extraits</h4>
+            <div id="extractedTables">
+                Chargement des tableaux...
+            </div>
+        </div>
+
+        <!-- Onglet Images -->
+        <div id="images-content" class="tab-content">
+            <h4><i class="fas fa-images me-2"></i>Images extraites</h4>
+            <div class="images-grid" id="extractedImages">
+                Chargement des images...
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Gestion des onglets
+    const tabs = document.querySelectorAll('.tab');
+    const tabContents = document.querySelectorAll('.tab-content');
+    
+    tabs.forEach(tab => {
+        tab.addEventListener('click', function() {
+            const targetTab = this.dataset.tab;
+            
+            // Désactiver tous les onglets
+            tabs.forEach(t => t.classList.remove('active'));
+            tabContents.forEach(tc => tc.classList.remove('active'));
+            
+            // Activer l'onglet cliqué
+            this.classList.add('active');
+            document.getElementById(targetTab).classList.add('active');
+        });
+    });
+    
+    // Récupérer l'ID du document depuis l'URL ou une variable
+    const documentId = getDocumentIdFromUrl();
+    
+    if (documentId) {
+        loadResults(documentId);
+    }
+    
+    function getDocumentIdFromUrl() {
+        const pathParts = window.location.pathname.split('/');
+        const resultsIndex = pathParts.indexOf('results');
+        if (resultsIndex !== -1 && pathParts[resultsIndex + 1]) {
+            return pathParts[resultsIndex + 1];
+        }
+        return null;
+    }
+    
+    function loadResults(documentId) {
+        fetch(`/results/${documentId}/`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    displayResults(data.data);
+                } else {
+                    showError('Erreur lors du chargement des résultats');
+                }
+            })
+            .catch(error => {
+                console.error('Erreur:', error);
+                showError('Erreur de connexion');
+            });
+    }
+    
+    function displayResults(data) {
+        // Mettre à jour les statistiques
+        document.getElementById('textCount').textContent = data.pages_count || 0;
+        document.getElementById('tableCount').textContent = data.tables_count || 0;
+        document.getElementById('imageCount').textContent = data.images_count || 0;
+        
+        // Afficher le texte extrait
+        if (data.text) {
+            document.getElementById('extractedText').textContent = data.text;
+        } else {
+            document.getElementById('extractedText').innerHTML = '<p class="text-muted">Aucun texte extrait</p>';
+        }
+        
+        // Afficher le texte positionnel
+        if (data.positioned_text && data.positioned_text.length > 0) {
+            displayPositionedText(data.positioned_text);
+        } else {
+            document.getElementById('positionedText').innerHTML = '<p class="text-muted">Aucun texte positionnel disponible</p>';
+        }
+        
+        // Afficher les tableaux
+        if (data.tables && data.tables.length > 0) {
+            displayTables(data.tables);
+        } else {
+            document.getElementById('extractedTables').innerHTML = '<p class="text-muted">Aucun tableau extrait</p>';
+        }
+        
+        // Afficher les images
+        if (data.images && data.images.length > 0) {
+            displayImages(data.images);
+        } else {
+            document.getElementById('extractedImages').innerHTML = '<p class="text-muted">Aucune image extraite</p>';
+        }
+    }
+    
+    function displayPositionedText(positionedText) {
+        const container = document.getElementById('positionedText');
+        container.innerHTML = '';
+        
+        positionedText.forEach((pageData, pageIndex) => {
+            const pageDiv = document.createElement('div');
+            pageDiv.className = 'positioned-text';
+            
+            const pageTitle = document.createElement('h6');
+            pageTitle.textContent = `Page ${pageIndex + 1}`;
+            pageDiv.appendChild(pageTitle);
+            
+            pageData.forEach(textBlock => {
+                const blockDiv = document.createElement('div');
+                blockDiv.className = 'text-block';
+                
+                const coordinates = document.createElement('div');
+                coordinates.className = 'coordinates';
+                coordinates.textContent = `Position: (${textBlock.x}, ${textBlock.y}) - Taille: ${textBlock.width}x${textBlock.height}`;
+                blockDiv.appendChild(coordinates);
+                
+                const textContent = document.createElement('div');
+                textContent.textContent = textBlock.text;
+                blockDiv.appendChild(textContent);
+                
+                pageDiv.appendChild(blockDiv);
+            });
+            
+            container.appendChild(pageDiv);
+        });
+    }
+    
+    function displayTables(tables) {
+        const container = document.getElementById('extractedTables');
+        container.innerHTML = '';
+        
+        tables.forEach((table, index) => {
+            const tableContainer = document.createElement('div');
+            tableContainer.className = 'table-container';
+            
+            const tableTitle = document.createElement('h5');
+            tableTitle.innerHTML = `<i class="fas fa-table me-2"></i>Tableau ${index + 1}`;
+            tableContainer.appendChild(tableTitle);
+            
+            const tableElement = document.createElement('table');
+            tableElement.className = 'extracted-table';
+            
+            // En-têtes
+            if (table.length > 0) {
+                const thead = document.createElement('thead');
+                const headerRow = document.createElement('tr');
+                
+                table[0].forEach(header => {
+                    const th = document.createElement('th');
+                    th.textContent = header || '';
+                    headerRow.appendChild(th);
+                });
+                
+                thead.appendChild(headerRow);
+                tableElement.appendChild(thead);
+                
+                // Corps du tableau
+                const tbody = document.createElement('tbody');
+                for (let i = 1; i < table.length; i++) {
+                    const row = document.createElement('tr');
+                    table[i].forEach(cell => {
+                        const td = document.createElement('td');
+                        td.textContent = cell || '';
+                        row.appendChild(td);
+                    });
+                    tbody.appendChild(row);
+                }
+                tableElement.appendChild(tbody);
+            }
+            
+            tableContainer.appendChild(tableElement);
+            container.appendChild(tableContainer);
+        });
+    }
+    
+    function displayImages(images) {
+        const container = document.getElementById('extractedImages');
+        container.innerHTML = '';
+        
+        images.forEach((image, index) => {
+            const imageCard = document.createElement('div');
+            imageCard.className = 'image-card';
+            
+            const img = document.createElement('img');
+            img.src = image.url;
+            img.alt = `Image extraite ${index + 1}`;
+            img.loading = 'lazy';
+            imageCard.appendChild(img);
+            
+            const imageInfo = document.createElement('div');
+            imageInfo.className = 'image-info';
+            imageInfo.innerHTML = `
+                <strong>Image ${index + 1}</strong><br>
+                Page: ${image.page || 'N/A'}<br>
+                Format: ${image.format || 'N/A'}
+            `;
+            imageCard.appendChild(imageInfo);
+            
+            const downloadBtn = document.createElement('a');
+            downloadBtn.href = image.url;
+            downloadBtn.className = 'download-btn';
+            downloadBtn.download = `image_${index + 1}.${image.format || 'png'}`;
+            downloadBtn.innerHTML = '<i class="fas fa-download me-1"></i>Télécharger';
+            imageCard.appendChild(downloadBtn);
+            
+            container.appendChild(imageCard);
+        });
+    }
+    
+    function showError(message) {
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'alert alert-danger';
+        errorDiv.textContent = message;
+        document.querySelector('.container').insertBefore(errorDiv, document.querySelector('.results-header'));
+    }
+});
+</script>
+{% endblock %}
